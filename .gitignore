@@ -4,5 +4,6 @@ build/
 *.hex
 *.out
 *.diff
-# large copied tool; fetch from your CS61C proj3 if needed
-tools/venus.jar
+
+# large copied tools; copy these in from your proj3 when needed
+*.jar

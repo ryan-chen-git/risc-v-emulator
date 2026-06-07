@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RISC-V CPU Replay</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    background: #0f1115; color: #e6e6e6;
+    font-family: "Segoe UI", system-ui, sans-serif;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #8a93a0; font-size: 13px; margin-bottom: 20px; }
+  .mono { font-family: "Cascadia Code", Consolas, monospace; }
+  .panel { background: #171a21; border: 1px solid #262b36; border-radius: 10px; padding: 16px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .pipeline { flex: 1; min-width: 280px; }
+  .stages { display: flex; align-items: stretch; gap: 12px; }
+  .stage { flex: 1; background: #11141a; border: 1px solid #2b3140; border-radius: 8px; padding: 12px; }
+  .stage h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #7f8a99; }
+  .stage .inst { font-size: 16px; font-weight: 600; min-height: 22px; }
+  .stage .pc { color: #8a93a0; font-size: 12px; margin-top: 6px; }
+  .stage.fetch { border-color: #3a5a7a; }
+  .stage.exec  { border-color: #3a7a5a; }
+  .stage.empty .inst { color: #4a525f; font-weight: 400; }
+  .arrow { align-self: center; color: #4a525f; font-size: 22px; }
+  .regs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 4px; }
+  .reg { background: #11141a; border: 1px solid #2b3140; border-radius: 8px; padding: 10px 12px; }
+  .reg .name { font-size: 12px; color: #7f8a99; }
+  .reg .hex { font-size: 15px; font-weight: 600; }
+  .reg .dec { font-size: 11px; color: #8a93a0; }
+  .reg.changed { border-color: #c9a227; background: #211d12; }
+  .reg.changed .hex { color: #ffd454; }
+  .controls { display: flex; align-items: center; gap: 10px; margin: 18px 0; flex-wrap: wrap; }
+  button, select {
+    background: #232834; color: #e6e6e6; border: 1px solid #353c4a;
+    border-radius: 7px; padding: 8px 12px; font-size: 14px; cursor: pointer;
+  }
+  button:hover { background: #2c3340; }
+  button.primary { background: #2f6f4f; border-color: #357a57; }
+  input[type=range] { flex: 1; min-width: 160px; }
+  .cyc { font-variant-numeric: tabular-nums; min-width: 130px; }
+  label { font-size: 13px; color: #8a93a0; }
+</style>
+</head>
+<body>
+  <h1>RISC-V CPU Replay <span class="sub">2-stage pipeline, captured from the real Logisim circuit</span></h1>
+
+  <div class="controls">
+    <label>Program</label>
+    <select id="prog"></select>
+    <button id="reset" title="Reset">&#9198;</button>
+    <button id="back" title="Step back">&#9664;</button>
+    <button id="play" class="primary" title="Play / pause">&#9654; Play</button>
+    <button id="fwd" title="Step forward">&#9654;</button>
+    <label>Speed</label>
+    <input id="speed" type="range" min="1" max="20" value="6" style="max-width:120px">
+    <span class="cyc mono" id="cyc">cycle 0 / 0</span>
+  </div>
+
+  <input id="scrub" type="range" min="0" max="0" value="0" style="width:100%; margin-bottom:18px">
+
+  <div class="row">
+    <div class="panel pipeline">
+      <div class="stages">
+        <div class="stage fetch" id="s1">
+          <h3>Stage 1 &middot; Fetch</h3>
+          <div class="inst mono" id="s1inst">-</div>
+          <div class="pc mono" id="s1pc"></div>
+        </div>
+        <div class="arrow">&#10142;</div>
+        <div class="stage exec" id="s2">
+          <h3>Stage 2 &middot; Decode / Execute</h3>
+          <div class="inst mono" id="s2inst">-</div>
+          <div class="pc mono" id="s2pc"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px">
+    <h3 style="margin:0 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:#7f8a99">Registers</h3>
+    <div class="regs" id="regs"></div>
+  </div>
+
+<script src="data.js"></script>
+<script>
+  const REGS = window.TRACE_REGS;
+  const TRACES = window.TRACES;
+  const $ = id => document.getElementById(id);
+
+  let prog = Object.keys(TRACES)[0];
+  let i = 0;
+  let timer = null;
+
+  function trace() { return TRACES[prog]; }
+  function hex(v) { return "0x" + (v >>> 0).toString(16).padStart(8, "0"); }
+  function sdec(v) { return (v | 0); }
+
+  function buildRegs() {
+    $("regs").innerHTML = REGS.map((name, k) =>
+      `<div class="reg" id="reg${k}">
+         <div class="name mono">${name} (x${[1,2,5,6,7,8,9,10][k]})</div>
+         <div class="hex mono">0x00000000</div>
+         <div class="dec mono">0</div>
+       </div>`).join("");
+  }
+
+  function render() {
+    const t = trace();
+    const c = t[i];
+    const prev = i > 0 ? t[i - 1] : null;
+
+    $("s1inst").textContent = c.dis;
+    $("s1pc").textContent = "PC " + hex(c.pc) + "   " + hex(c.instr);
+
+    const s2 = $("s2");
+    if (prev) {
+      s2.classList.remove("empty");
+      $("s2inst").textContent = prev.dis;
+      $("s2pc").textContent = "PC " + hex(prev.pc) + "   " + hex(prev.instr);
+    } else {
+      s2.classList.add("empty");
+      $("s2inst").textContent = "(pipeline filling)";
+      $("s2pc").textContent = "";
+    }
+
+    for (let k = 0; k < REGS.length; k++) {
+      const cell = $("reg" + k);
+      cell.querySelector(".hex").textContent = hex(c.regs[k]);
+      cell.querySelector(".dec").textContent = sdec(c.regs[k]);
+      const changed = prev && prev.regs[k] !== c.regs[k];
+      cell.classList.toggle("changed", !!changed);
+    }
+
+    $("cyc").textContent = `cycle ${c.t} / ${t[t.length - 1].t}`;
+    $("scrub").value = i;
+  }
+
+  function clamp() { i = Math.max(0, Math.min(i, trace().length - 1)); }
+  function step(d) { stop(); i += d; clamp(); render(); }
+
+  function play() {
+    if (timer) { stop(); return; }
+    $("play").textContent = "❚❚ Pause";
+    const fps = +$("speed").value;
+    timer = setInterval(() => {
+      if (i >= trace().length - 1) { stop(); return; }
+      i++; render();
+    }, 1000 / fps);
+  }
+  function stop() {
+    if (timer) { clearInterval(timer); timer = null; }
+    $("play").innerHTML = "&#9654; Play";
+  }
+
+  function loadProg(p) {
+    stop(); prog = p; i = 0;
+    $("scrub").max = trace().length - 1;
+    render();
+  }
+
+  // init
+  $("prog").innerHTML = Object.keys(TRACES).map(p => `<option>${p}</option>`).join("");
+  buildRegs();
+  loadProg(prog);
+
+  $("prog").onchange = e => loadProg(e.target.value);
+  $("reset").onclick = () => { step(-1e9); };
+  $("back").onclick = () => step(-1);
+  $("fwd").onclick = () => step(1);
+  $("play").onclick = play;
+  $("scrub").oninput = e => { stop(); i = +e.target.value; render(); };
+  $("speed").oninput = () => { if (timer) { stop(); play(); } };
+  document.onkeydown = e => {
+    if (e.key === "ArrowRight") step(1);
+    else if (e.key === "ArrowLeft") step(-1);
+    else if (e.key === " ") { e.preventDefault(); play(); }
+  };
+</script>
+</body>
+</html>
