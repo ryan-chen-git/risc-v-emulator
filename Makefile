@@ -1,7 +1,7 @@
 CXX      := g++
 CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -MMD -MP
 
-SRC := src/main.cpp src/cpu.cpp
+SRC := src/main.cpp src/cpu.cpp src/timing.cpp
 OBJ := $(SRC:src/%.cpp=build/%.o)
 DEP := $(OBJ:.o=.d)
 BIN := build/emu

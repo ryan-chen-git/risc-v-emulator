@@ -153,6 +153,20 @@ void CPU::step() {
         break;
     }
 
+    if (reclog) {
+        InstClass ic = classify(d.opcode);
+        Retired r;
+        r.pc  = pc;        r.raw = raw;
+        r.rd  = u8(d.rd);  r.rs1 = u8(d.rs1);  r.rs2 = u8(d.rs2);
+        r.writes_rd = ic.writes_rd;
+        r.reads_rs1 = ic.reads_rs1;
+        r.reads_rs2 = ic.reads_rs2;
+        r.is_load   = ic.is_load;   r.is_store = ic.is_store;
+        r.is_branch = ic.is_branch; r.is_jump  = ic.is_jump;
+        r.taken = (next_pc != pc + 4);
+        reclog->push_back(r);
+    }
+
     pc = next_pc;
     ++retired;
 }

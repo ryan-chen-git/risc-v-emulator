@@ -54,3 +54,28 @@ inline Decoded decode(u32 raw) {
 
     return d;
 }
+
+// Static classification of an instruction by opcode: which register operands
+// it reads and writes, and what category it is. The timing models use this to
+// detect hazards without re-running the datapath.
+struct InstClass {
+    bool writes_rd = false, reads_rs1 = false, reads_rs2 = false;
+    bool is_load = false, is_store = false, is_branch = false, is_jump = false;
+};
+
+inline InstClass classify(u32 opcode) {
+    InstClass c;
+    switch (opcode) {
+    case 0x37: c.writes_rd = true; break;                                         // LUI
+    case 0x17: c.writes_rd = true; break;                                         // AUIPC
+    case 0x6f: c.writes_rd = true; c.is_jump = true; break;                       // JAL
+    case 0x67: c.writes_rd = true; c.reads_rs1 = true; c.is_jump = true; break;   // JALR
+    case 0x63: c.reads_rs1 = true; c.reads_rs2 = true; c.is_branch = true; break; // BRANCH
+    case 0x03: c.writes_rd = true; c.reads_rs1 = true; c.is_load = true; break;   // LOAD
+    case 0x23: c.reads_rs1 = true; c.reads_rs2 = true; c.is_store = true; break;  // STORE
+    case 0x13: c.writes_rd = true; c.reads_rs1 = true; break;                     // OP-IMM
+    case 0x33: c.writes_rd = true; c.reads_rs1 = true; c.reads_rs2 = true; break; // OP
+    default: break;
+    }
+    return c;
+}

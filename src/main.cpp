@@ -1,8 +1,10 @@
 #include "cpu.hpp"
+#include "timing.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <string>
+#include <vector>
 
 // Render the low `bits` of v as a big-endian binary string (matches Venus traces).
 static std::string to_bin(u32 v, int bits) {
@@ -47,15 +49,17 @@ static const char* ABI[32] = {
 int main(int argc, char** argv) {
     std::string load_path;
     bool trace = false;
+    bool compare = false;
     long steps = 1000000; // safety cap when not overridden
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
-        if      (a == "--load"  && i + 1 < argc) load_path = argv[++i];
-        else if (a == "--trace")                 trace = true;
-        else if (a == "--steps" && i + 1 < argc) steps = std::atol(argv[++i]);
+        if      (a == "--load"    && i + 1 < argc) load_path = argv[++i];
+        else if (a == "--trace")                   trace = true;
+        else if (a == "--compare")                 compare = true;
+        else if (a == "--steps"   && i + 1 < argc) steps = std::atol(argv[++i]);
         else if (a == "--help") {
-            std::printf("usage: emu --load <hex> [--trace] [--steps N]\n");
+            std::printf("usage: emu --load <hex> [--trace | --compare] [--steps N]\n");
             return 0;
         }
         else if (load_path.empty() && !a.empty() && a[0] != '-') load_path = a;
@@ -68,7 +72,32 @@ int main(int argc, char** argv) {
     CPU cpu;
     if (!load_hex(cpu, load_path)) return 1;
 
-    if (trace) {
+    if (compare) {
+        // Run the program once functionally, recording the instruction stream,
+        // then analyze it under each design's timing model.
+        std::vector<Retired> log;
+        cpu.reclog = &log;
+        for (long i = 0; i < steps; ++i) {
+            if (cpu.halted) break;
+            if (cpu.fetch() == 0) break; // reached end of program
+            cpu.step();
+        }
+        cpu.reclog = nullptr;
+
+        Comparison cmp = analyze(log);
+        std::printf("program: %s\n", load_path.c_str());
+        std::printf("instructions: %ld    load-use stalls: %ld    taken control transfers: %ld\n\n",
+                    cmp.single.instructions, cmp.load_use_stalls, cmp.taken_control);
+        std::printf("%-13s %9s %6s %11s %11s %9s\n",
+                    "design", "cycles", "CPI", "clock(ps)", "time(ns)", "speedup");
+        const TimingResult* rows[3] = {&cmp.single, &cmp.two, &cmp.five};
+        for (const TimingResult* r : rows)
+            std::printf("%-13s %9ld %6.2f %11.0f %11.2f %8.2fx\n",
+                        r->name.c_str(), r->cycles, r->cpi, r->clock_ps, r->time_ns, r->speedup);
+        std::printf("\nmodel: full forwarding; load-use costs 1 bubble; a taken branch or\n");
+        std::printf("jump costs 2 bubbles on the 5-stage and 1 on the 2-stage.\n");
+        std::printf("stage delays (ps): IMEM 200, RegRead 100, ALU 200, DMEM 200, RegWrite 100.\n");
+    } else if (trace) {
         std::printf("ra,sp,t0,t1,t2,s0,s1,a0,RequestedAddress,RequestedInstruction,TimeStep\n");
         for (long t = 0; t < steps; ++t) {
             u32 instr = cpu.fetch();
