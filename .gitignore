@@ -1,0 +1,8 @@
+build/
+*.o
+*.d
+*.hex
+*.out
+*.diff
+# large copied tool; fetch from your CS61C proj3 if needed
+tools/venus.jar
