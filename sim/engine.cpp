@@ -56,6 +56,9 @@ void Engine::step() {
     sig["WriteData"] = writeData;  sig["DataToReg"] = dataToReg;  sig["MemAddress"] = memaddr;
     sig["ASel"] = c.asel;  sig["BSel"] = c.bsel;  sig["ALUSel"] = c.alusel;
     sig["WBSel"] = c.wbsel;  sig["PCSel"] = c.pcsel;  sig["RegWEn"] = c.regwen;
+    sig["BrUn"] = brun;  sig["BrEq"] = breq;  sig["BrLt"] = brlt;
+    sig["NextPC"] = c.pcsel ? alures : pcp4;            // PC-select mux output
+    sig["NextInstr"] = c.pcsel ? 0x13u : instr;         // instruction-kill mux output
     // Debug register outputs, sampled before this cycle's writeback to match the
     // circuit's registered ra/sp/.../a0 pins.
     sig["ra"] = regs[1];  sig["sp"] = regs[2];  sig["t0"] = regs[5];  sig["t1"] = regs[6];

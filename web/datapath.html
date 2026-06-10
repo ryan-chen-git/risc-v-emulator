@@ -6,42 +6,45 @@
 <title>RISC-V 2-stage datapath</title>
 <style>
   :root { --bg:#0d1117; --panel:#161b22; --line:#30363d; --txt:#c9d1d9;
-          --dim:#8b949e; --hot:#f0883e; --live:#3fb950; --accent:#58a6ff; }
+          --dim:#8b949e; --hot:#f0883e; --live:#3fb950; --accent:#58a6ff; --mux:#1f2937; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--txt);
          font-family:"SF Mono",Consolas,Menlo,monospace; }
-  header { padding:14px 18px; border-bottom:1px solid var(--line);
+  header { padding:12px 18px; border-bottom:1px solid var(--line);
            display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
-  h1 { font-size:15px; margin:0; font-weight:600; letter-spacing:.3px; }
+  h1 { font-size:15px; margin:0; font-weight:600; }
   .controls { display:flex; align-items:center; gap:8px; }
   button { background:var(--panel); color:var(--txt); border:1px solid var(--line);
            border-radius:6px; padding:6px 12px; cursor:pointer; font:inherit; }
   button:hover { border-color:var(--accent); }
   button.primary { background:var(--accent); color:#0d1117; border-color:var(--accent); }
   input[type=range] { width:120px; accent-color:var(--accent); }
-  .cyc { color:var(--accent); font-weight:600; min-width:120px; }
+  .cyc { color:var(--accent); font-weight:600; min-width:118px; }
   .asm { color:var(--hot); }
-  main { display:grid; grid-template-columns:1fr 220px; gap:0; }
+  main { display:grid; grid-template-columns:1fr 210px; }
   svg { width:100%; height:auto; display:block; }
-  .blk { fill:var(--panel); stroke:var(--line); stroke-width:1.5; rx:7; }
+  .blk { fill:var(--panel); stroke:var(--line); stroke-width:1.5; }
+  .mux { fill:var(--mux); stroke:var(--line); stroke-width:1.5; }
+  .mux.fire { stroke:var(--hot); stroke-width:2.5; }
   .blklbl { fill:var(--txt); font-size:13px; font-weight:600; text-anchor:middle; }
-  .blksub { fill:var(--dim); font-size:10px; text-anchor:middle; }
-  .wire { stroke:var(--line); stroke-width:2; fill:none; }
-  .wire.on { stroke:var(--live); }
-  .val { fill:var(--dim); font-size:11px; }
+  .blksub { fill:var(--dim); font-size:9.5px; text-anchor:middle; }
+  .muxlbl { fill:var(--dim); font-size:9px; text-anchor:middle; }
+  .wire { stroke:var(--line); stroke-width:1.8; fill:none; }
+  .wire.on { stroke:var(--live); stroke-width:2.2; }
+  .wire.fb { stroke-dasharray:2 3; }
+  .val { fill:var(--dim); font-size:10.5px; }
   .val.on { fill:var(--live); }
-  .bound { stroke:var(--hot); stroke-width:1.5; stroke-dasharray:5 4; opacity:.6; }
-  .boundlbl { fill:var(--hot); font-size:10px; text-anchor:middle; opacity:.8; }
+  .bound { stroke:var(--hot); stroke-width:1.4; stroke-dasharray:5 4; opacity:.5; }
+  .boundlbl { fill:var(--hot); font-size:10px; text-anchor:middle; opacity:.85; }
+  .stagelbl { fill:var(--dim); font-size:11px; font-weight:600; letter-spacing:1px; }
   aside { border-left:1px solid var(--line); padding:14px; }
-  aside h2 { font-size:11px; color:var(--dim); text-transform:uppercase;
-             letter-spacing:.5px; margin:0 0 8px; }
-  .reg { display:flex; justify-content:space-between; padding:3px 0; font-size:13px; }
+  aside h2 { font-size:11px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; margin:0 0 6px; }
+  .reg { display:flex; justify-content:space-between; padding:2px 0; font-size:13px; }
   .reg .rn { color:var(--dim); }
-  .reg .rv { color:var(--txt); }
   .reg.changed .rv { color:var(--hot); font-weight:600; }
-  .ctl { display:grid; grid-template-columns:auto auto; gap:2px 10px; font-size:12px; margin-top:14px; }
-  .ctl .cn { color:var(--dim); }
-  .ctl .cv { color:var(--accent); text-align:right; }
+  .ctl { display:grid; grid-template-columns:auto auto; gap:1px 10px; font-size:12px; margin-top:14px; }
+  .ctl .cn { color:var(--dim); } .ctl .cv { color:var(--accent); text-align:right; }
+  .ctl .cv.hot { color:var(--hot); font-weight:600; }
 </style>
 </head>
 <body>
@@ -58,163 +61,167 @@
   <div class="asm" id="asm">&nbsp;</div>
 </header>
 <main>
-  <svg id="dp" viewBox="0 0 1180 560" xmlns="http://www.w3.org/2000/svg"></svg>
+  <svg id="dp" viewBox="0 0 1380 720" xmlns="http://www.w3.org/2000/svg"></svg>
   <aside>
-    <h2>registers</h2>
-    <div id="regs"></div>
-    <div class="ctl" id="ctl"></div>
+    <h2>registers</h2><div id="regs"></div>
+    <h2 style="margin-top:16px">control</h2><div class="ctl" id="ctl"></div>
   </aside>
 </main>
 
 <script src="trace.js"></script>
 <script>
-const NS = "http://www.w3.org/2000/svg";
-const svg = document.getElementById("dp");
+const NS="http://www.w3.org/2000/svg";
+const svg=document.getElementById("dp");
 
-// Datapath blocks: stage 1 on the left, the pipeline boundary in the middle,
-// stage 2 on the right. Each block names the signal(s) it drives.
-const BLOCKS = [
-  {x:30,  y:250, w:84, h:54, lbl:"PC",      sub:"register"},
-  {x:30,  y:360, w:84, h:40, lbl:"+4",      sub:"adder"},
-  {x:165, y:150, w:104,h:54, lbl:"IMEM",    sub:"instr mem"},
-  {x:165, y:300, w:30, h:86, lbl:"",        sub:"", mux:"PCSel"},
-  {x:470, y:40,  w:128,h:58, lbl:"Control", sub:"exi → signals"},
-  {x:470, y:138, w:128,h:46, lbl:"ImmGen",  sub:"→ Immediate"},
-  {x:470, y:250, w:128,h:96, lbl:"RegFile", sub:"rs1,rs2 → rd1,rd2"},
-  {x:650, y:250, w:30, h:74, lbl:"",        sub:"", mux:"ASel"},
-  {x:650, y:360, w:30, h:74, lbl:"",        sub:"", mux:"BSel"},
-  {x:740, y:270, w:110,h:96, lbl:"ALU",     sub:"A op B"},
-  {x:900, y:400, w:110,h:54, lbl:"DMEM",    sub:"data mem"},
-  {x:1080,y:250, w:30, h:110,lbl:"",        sub:"", mux:"WBSel"},
+// --- blocks: [x, y, w, h] ---
+const BLK = {
+  pcsel:[40,300,26,90,"mux","PCSel"], pc:[130,316,78,52,"PC","register"],
+  imem:[252,252,98,46,"IMEM","instr mem"], add4:[252,372,84,36,"+4","adder"],
+  kill:[402,252,26,68,"mux","kill"],
+  exi:[470,256,62,40,"exi","pipe reg"], expc:[470,330,62,40,"expc","pipe reg"],
+  ep4:[470,404,62,40,"expcp4","pipe reg"],
+  ctrl:[582,66,144,54,"Control","exi → signals"], imm:[582,152,144,40,"ImmGen","→ Immediate"],
+  rf:[582,240,144,92,"RegFile","rs1,rs2 → rd1,rd2"], br:[582,366,144,48,"BranchComp","→ BrEq,BrLt"],
+  asel:[772,248,26,72,"mux","ASel"], bsel:[772,350,26,72,"mux","BSel"],
+  alu:[858,272,114,98,"ALU","A op B"], dmem:[1024,398,114,50,"DMEM","data mem"],
+  wbsel:[1198,262,26,112,"mux","WBSel"],
+};
+// port helpers
+const X=id=>BLK[id][0], YY=id=>BLK[id][1], W=id=>BLK[id][2], H=id=>BLK[id][3];
+const R =id=>[X(id)+W(id), YY(id)+H(id)/2];
+const L =id=>[X(id), YY(id)+H(id)/2];
+const Bo=id=>[X(id)+W(id)/2, YY(id)+H(id)];
+const To=id=>[X(id)+W(id)/2, YY(id)];
+const oR=(id,f)=>[X(id)+W(id), YY(id)+H(id)*f];   // right edge at fraction f
+const iL=(id,f)=>[X(id), YY(id)+H(id)*f];          // left edge at fraction f
+
+// --- wires: pts list + signal name + label anchor ---
+const WIRE = [
+  // stage 1
+  {p:[R("pcsel"),L("pc")], s:"NextPC", l:[96,332]},
+  {p:[R("pc"),[226,342],[226,275],L("imem")], s:"ProgramCounter", l:[214,300]},
+  {p:[[226,342],[226,390],L("add4")], s:"ProgramCounter", l:[214,392], q:1},
+  {p:[R("imem"),[378,275],[378,266],iL("kill",.2)], s:"Instruction", l:[356,268]},
+  {p:[[388,310],[388,306],iL("kill",.8)], s:"NextInstr", l:[360,320], bub:1},
+  {p:[R("kill"),L("exi")], s:"NextInstr", l:[440,248]},
+  {p:[[226,390],[226,485],[455,485],[455,350],L("expc")], s:"ProgramCounter", l:[300,479], q:1},
+  {p:[R("add4"),[360,390],[360,424],L("ep4")], s:"pcp4", l:[366,388]},
+  {p:[[360,390],[360,46],[30,46],[30,318],iL("pcsel",.2)], s:"pcp4", l:[36,210], q:1},
+  // stage 2 in
+  {p:[R("exi"),[556,276],[556,93],L("ctrl")], s:"exi", l:[540,150]},
+  {p:[[556,276],[556,172],L("imm")], s:"exi", l:[0,0], q:1, hide:1},
+  {p:[[556,276],[556,286],L("rf")], s:"exi", l:[0,0], q:1, hide:1},
+  {p:[R("expc"),[740,350],[740,306],iL("asel",.8)], s:"expc", l:[660,344], q:1},
+  // regfile / imm to muxes + branch
+  {p:[oR("rf",.3),iL("asel",.2)], s:"ReadData1", l:[742,260]},
+  {p:[oR("rf",.7),[752,304],[752,360],iL("bsel",.2)], s:"ReadData2", l:[742,318]},
+  {p:[oR("rf",.7),[746,304],[746,381],L("br")], s:"ReadData2", l:[0,0], q:1, hide:1},
+  {p:[oR("rf",.3),[758,272],[758,387],L("br")], s:"ReadData1", l:[0,0], q:1, hide:1},
+  {p:[R("imm"),[840,172],[840,398],iL("bsel",.8)], s:"Immediate", l:[744,398]},
+  // execute
+  {p:[R("asel"),[820,284],iL("alu",.2)], s:"ASelOut", l:[802,278]},
+  {p:[R("bsel"),[820,386],[820,338],iL("alu",.55)], s:"BSelOut", l:[802,396]},
+  {p:[R("alu"),[990,321],[990,278],iL("wbsel",.18)], s:"ALUResult", l:[978,300]},
+  {p:[[990,321],[990,423],L("dmem")], s:"ALUResult", l:[996,360], q:1},
+  {p:[R("dmem"),[1166,423],[1166,311],iL("wbsel",.5)], s:"DataToReg", l:[1142,436]},
+  {p:[R("ep4"),[540,424],[540,560],[1180,560],[1180,344],iL("wbsel",.82)], s:"expcp4", l:[900,554], fb:1},
+  // feedback
+  {p:[R("wbsel"),[1230,311],[1230,600],[560,600],[560,286],L("rf")], s:"WriteData", l:[860,594], fb:1},
+  {p:[[990,321],[990,640],[40,640],iL("pcsel",.8)], s:"ALUResult", l:[500,634], fb:1},
 ];
+const REGS=[["ra",1],["sp",2],["t0",5],["t1",6],["t2",7],["s0",8],["s1",9],["a0",10]];
+const CSIG=["ASel","BSel","ALUSel","WBSel","PCSel","RegWEn","BrUn","BrEq","BrLt"];
+const valEls={};
 
-// Wires: a polyline plus the signal whose value rides it.
-const WIRES = [
-  {p:[[114,277],[165,277],[165,180]], sig:"ProgramCounter", lx:120, ly:270},
-  {p:[[114,277],[114,380],[114,380]], sig:"ProgramCounter", lx:0,  ly:0, hide:1},
-  {p:[[269,177],[360,177]], sig:"Instruction", lx:280, ly:170},
-  {p:[[598,69],[650,69]],   sig:"ALUSel", lx:604, ly:62},
-  {p:[[598,161],[640,161],[640,300],[650,300]], sig:"Immediate", lx:604, ly:154},
-  {p:[[598,285],[650,285]], sig:"ReadData1", lx:604, ly:278},
-  {p:[[598,330],[630,330],[630,390],[650,390]], sig:"ReadData2", lx:604, ly:345},
-  {p:[[420,300],[650,300]], sig:"expc", lx:430, ly:293, dim:1},
-  {p:[[680,287],[740,300]], sig:"ASelOut", lx:686, ly:280},
-  {p:[[680,397],[720,397],[720,336],[740,336]], sig:"BSelOut", lx:686, ly:410},
-  {p:[[850,318],[1080,300]], sig:"ALUResult", lx:880, ly:300},
-  {p:[[850,340],[955,340],[955,400]], sig:"MemAddress", lx:860, ly:355, dim:1},
-  {p:[[1010,427],[1040,427],[1040,330],[1080,330]], sig:"DataToReg", lx:1014, ly:440},
-  {p:[[420,420],[1060,420],[1060,355],[1080,355]], sig:"expcp4", lx:430, ly:413, dim:1},
-  {p:[[1110,305],[1140,305],[1140,500],[420,500],[420,346]], sig:"WriteData", lx:700, ly:494},
-];
-
-const CTRL_SIGS = ["ASel","BSel","ALUSel","WBSel","PCSel","RegWEn"];
-const REGS = [["ra",1],["sp",2],["t0",5],["t1",6],["t2",7],["s0",8],["s1",9],["a0",10]];
-const valEls = {};
-
-function el(tag, attrs){ const e=document.createElementNS(NS,tag);
-  for(const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+function el(t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;}
+function pathd(pts){return "M"+pts.map(p=>p[0]+","+p[1]).join(" L");}
 
 function render(){
-  for(const b of BLOCKS){
-    if(b.mux){
-      // trapezoid mux narrowing toward the output (right)
-      const {x,y,w,h}=b;
-      svg.appendChild(el("polygon",{class:"blk",
-        points:`${x},${y} ${x+w},${y+14} ${x+w},${y+h-14} ${x},${y+h}`}));
-      svg.appendChild(el("text",{class:"blksub",x:x+w/2,y:y+h/2+3,
-        transform:`rotate(90 ${x+w/2} ${y+h/2})`,style:"font-size:9px"})).textContent=b.mux;
+  svg.appendChild(el("text",{class:"stagelbl",x:150,y:24})).textContent="STAGE 1 · FETCH";
+  svg.appendChild(el("text",{class:"stagelbl",x:760,y:24})).textContent="STAGE 2 · DECODE · EXECUTE · MEM · WRITEBACK";
+  svg.appendChild(el("line",{class:"bound",x1:452,y1:36,x2:452,y2:520}));
+  svg.appendChild(el("text",{class:"boundlbl",x:452,y:512})).textContent="pipeline regs";
+  // wires first (under blocks)
+  for(const w of WIRE){
+    if(!w.hide){
+      const p=el("path",{class:"wire"+(w.fb?" fb":""),d:pathd(w.p)}); p.dataset.s=w.s; svg.appendChild(p); w._e=p;
+    }
+    if(w.bub){ svg.appendChild(el("text",{class:"val",x:w.l[0],y:w.l[1]})).textContent="nop"; continue; }
+    if(w.l&&w.l[0]){ const t=el("text",{class:"val",x:w.l[0],y:w.l[1]}); svg.appendChild(t);
+      (valEls[w.s]=valEls[w.s]||[]).push(t); }
+  }
+  // blocks
+  for(const id in BLK){ const [x,y,w,h,a,b]=BLK[id];
+    if(a==="mux"){
+      const m=el("polygon",{class:"mux",points:`${x},${y} ${x+w},${y+13} ${x+w},${y+h-13} ${x},${y+h}`});
+      m.id="mux_"+id; svg.appendChild(m);
+      svg.appendChild(el("text",{class:"muxlbl",x:x+w/2,y:y+h/2+3,
+        transform:`rotate(90 ${x+w/2} ${y+h/2})`})).textContent=b;
     } else {
-      svg.appendChild(el("rect",{class:"blk",x:b.x,y:b.y,width:b.w,height:b.h,rx:7}));
-      svg.appendChild(el("text",{class:"blklbl",x:b.x+b.w/2,y:b.y+b.h/2+1})).textContent=b.lbl;
-      svg.appendChild(el("text",{class:"blksub",x:b.x+b.w/2,y:b.y+b.h/2+15})).textContent=b.sub;
+      svg.appendChild(el("rect",{class:"blk",x,y,width:w,height:h,rx:7}));
+      svg.appendChild(el("text",{class:"blklbl",x:x+w/2,y:y+h/2+1})).textContent=a;
+      svg.appendChild(el("text",{class:"blksub",x:x+w/2,y:y+h/2+15})).textContent=b;
     }
   }
-  // pipeline boundary
-  svg.appendChild(el("line",{class:"bound",x1:435,y1:30,x2:435,y2:520}));
-  svg.appendChild(el("text",{class:"boundlbl",x:435,y:24})).textContent="pipeline registers  exi · expc · expcp4";
-  for(const w of WIRES){
-    if(w.hide) continue;
-    const d = "M"+w.p.map(p=>p.join(",")).join(" L");
-    const path = el("path",{class:"wire",d});
-    path.dataset.sig=w.sig; svg.appendChild(path); w._el=path;
-    if(w.lx){ const t=el("text",{class:"val"+(w.dim?"":""),x:w.lx,y:w.ly});
-      svg.appendChild(t); valEls[w.sig]=valEls[w.sig]||[]; valEls[w.sig].push(t); }
-  }
   const rd=document.getElementById("regs");
-  for(const [n,i] of REGS){ const d=el2("div","reg"); d.id="reg_"+n;
+  for(const [n] of REGS){ const d=document.createElement("div"); d.className="reg"; d.id="reg_"+n;
     d.innerHTML=`<span class="rn">${n}</span><span class="rv" id="rv_${n}">0</span>`; rd.appendChild(d); }
   const cd=document.getElementById("ctl");
-  for(const s of CTRL_SIGS){ const d=el2("div","cn"); d.textContent=s; cd.appendChild(d);
-    const v=el2("div","cv"); v.id="cv_"+s; v.textContent="0"; cd.appendChild(v); }
+  for(const s of CSIG){ const a=document.createElement("div"); a.className="cn"; a.textContent=s; cd.appendChild(a);
+    const v=document.createElement("div"); v.className="cv"; v.id="cv_"+s; v.textContent="0"; cd.appendChild(v); }
 }
-function el2(tag,cls){ const e=document.createElement(tag); e.className=cls; return e; }
 
-const hex = n => "0x"+(n>>>0).toString(16).padStart(8,"0");
-const ABI = ["zero","ra","sp","gp","tp","t0","t1","t2","s0","s1","a0","a1","a2","a3","a4","a5",
+const hex=n=>"0x"+(n>>>0).toString(16).padStart(8,"0");
+const ABI=["zero","ra","sp","gp","tp","t0","t1","t2","s0","s1","a0","a1","a2","a3","a4","a5",
   "a6","a7","s2","s3","s4","s5","s6","s7","s8","s9","s10","s11","t3","t4","t5","t6"];
-
-// Minimal disassembler so the executing instruction reads naturally.
 function disasm(w){
-  if(w===0||w===0x13) return "nop";
-  const op=w&0x7f, rd=(w>>>7)&0x1f, f3=(w>>>12)&7, rs1=(w>>>15)&0x1f, rs2=(w>>>20)&0x1f;
-  const iimm=(w>>20)|0, sgn=(w|0)>>20;
-  const R={0:"add",1:"sll",2:"slt",3:"sltu",4:"xor",5:"srl",6:"or",7:"and"};
-  if(op===0x33){ let m=R[f3]; if(f3===0&&(w>>>30&1))m="sub"; if(f3===5&&(w>>>30&1))m="sra";
-    if((w>>>25&0x7f)===1)m=["mul","mulh","mulhsu","mulhu","div","divu","rem","remu"][f3];
-    return `${m} ${ABI[rd]}, ${ABI[rs1]}, ${ABI[rs2]}`; }
-  if(op===0x13){ const m={0:"addi",1:"slli",2:"slti",3:"sltiu",4:"xori",5:"srli",6:"ori",7:"andi"}[f3];
-    return `${m} ${ABI[rd]}, ${ABI[rs1]}, ${sgn}`; }
-  if(op===0x03){ const m={0:"lb",1:"lh",2:"lw",4:"lbu",5:"lhu"}[f3]; return `${m} ${ABI[rd]}, ${sgn}(${ABI[rs1]})`; }
-  if(op===0x23){ const m={0:"sb",1:"sh",2:"sw"}[f3]; return `${m} ${ABI[rs2]}, (${ABI[rs1]})`; }
-  if(op===0x63){ const m={0:"beq",1:"bne",4:"blt",5:"bge",6:"bltu",7:"bgeu"}[f3]; return `${m} ${ABI[rs1]}, ${ABI[rs2]}`; }
-  if(op===0x6f) return `jal ${ABI[rd]}`;
-  if(op===0x67) return `jalr ${ABI[rd]}, ${ABI[rs1]}`;
-  if(op===0x37) return `lui ${ABI[rd]}`;
-  if(op===0x17) return `auipc ${ABI[rd]}`;
+  if(w===0||w===0x13)return "nop";
+  const op=w&0x7f,rd=(w>>>7)&31,f3=(w>>>12)&7,rs1=(w>>>15)&31,rs2=(w>>>20)&31,sg=(w|0)>>20;
+  const R3={0:"add",1:"sll",2:"slt",3:"sltu",4:"xor",5:"srl",6:"or",7:"and"};
+  if(op===0x33){let m=R3[f3];if(f3===0&&(w>>>30&1))m="sub";if(f3===5&&(w>>>30&1))m="sra";
+    if((w>>>25&127)===1)m=["mul","mulh","mulhsu","mulhu","div","divu","rem","remu"][f3];
+    return `${m} ${ABI[rd]}, ${ABI[rs1]}, ${ABI[rs2]}`;}
+  if(op===0x13)return `${({0:"addi",1:"slli",2:"slti",3:"sltiu",4:"xori",5:"srli",6:"ori",7:"andi"})[f3]} ${ABI[rd]}, ${ABI[rs1]}, ${sg}`;
+  if(op===0x03)return `${({0:"lb",1:"lh",2:"lw",4:"lbu",5:"lhu"})[f3]} ${ABI[rd]}, ${sg}(${ABI[rs1]})`;
+  if(op===0x23)return `${({0:"sb",1:"sh",2:"sw"})[f3]} ${ABI[rs2]}, (${ABI[rs1]})`;
+  if(op===0x63)return `${({0:"beq",1:"bne",4:"blt",5:"bge",6:"bltu",7:"bgeu"})[f3]} ${ABI[rs1]}, ${ABI[rs2]}`;
+  if(op===0x6f)return `jal ${ABI[rd]}`; if(op===0x67)return `jalr ${ABI[rd]}, ${ABI[rs1]}`;
+  if(op===0x37)return `lui ${ABI[rd]}`; if(op===0x17)return `auipc ${ABI[rd]}`;
   return hex(w);
 }
 
-let prev = {};
+let prev={};
 function show(i){
-  const t = TRACE[i]; if(!t) return;
-  document.getElementById("cyc").textContent = "cycle "+t.cyc+" / "+TRACE.length;
-  document.getElementById("asm").textContent = "stage 2:  "+disasm(t.exi)+"   ("+hex(t.exi)+")";
-  for(const sig in valEls){
-    let v = t[sig]; let s;
-    if(sig==="Instruction"||sig==="MemAddress"||sig==="ProgramCounter") s=hex(v);
-    else s = (v|0).toString();
-    const on = v!==0;
-    for(const e of valEls[sig]){ e.textContent=s; e.classList.toggle("on", on); }
-  }
-  for(const w of WIRES){ if(w._el) w._el.classList.toggle("on", (t[w.sig]|0)!==0 && !w.dim); }
-  for(const [n,idx] of REGS){
-    const e=document.getElementById("rv_"+n); const v=t[n]|0;
-    const row=document.getElementById("reg_"+n);
-    row.classList.toggle("changed", prev[n]!==undefined && prev[n]!==v);
-    e.textContent=v;
-  }
-  for(const s of CTRL_SIGS) document.getElementById("cv_"+s).textContent = t[s];
-  prev = {}; for(const [n] of REGS) prev[n]=t[n]|0;
+  const t=TRACE[i]; if(!t)return;
+  document.getElementById("cyc").textContent="cycle "+t.cyc+" / "+TRACE.length;
+  document.getElementById("asm").textContent="stage 2:  "+disasm(t.exi)+"   ("+hex(t.exi)+")";
+  for(const s in valEls){ let v=t[s];
+    const str=(s==="Instruction"||s==="NextInstr"||s==="MemAddress"||s==="ProgramCounter"||s==="NextPC")?hex(v):(v|0).toString();
+    for(const e of valEls[s]){ e.textContent=str; e.classList.toggle("on", v!==0); } }
+  for(const w of WIRE){ if(w._e) w._e.classList.toggle("on",(t[w.s]|0)!==0); }
+  // branch flush: light the kill + pc-select muxes when a branch/jump redirects
+  document.getElementById("mux_kill").classList.toggle("fire", t.PCSel===1);
+  document.getElementById("mux_pcsel").classList.toggle("fire", t.PCSel===1);
+  for(const [n] of REGS){ const v=t[n]|0; const row=document.getElementById("reg_"+n);
+    row.classList.toggle("changed", prev[n]!==undefined&&prev[n]!==v);
+    document.getElementById("rv_"+n).textContent=v; }
+  for(const s of CSIG){ const e=document.getElementById("cv_"+s); e.textContent=t[s];
+    e.classList.toggle("hot", t[s]!==0); }
+  prev={}; for(const [n] of REGS) prev[n]=t[n]|0;
 }
 
-let cur=0, timer=null;
-function goto(i){ cur=Math.max(0,Math.min(TRACE.length-1,i)); show(cur); }
-function playPause(){
-  const b=document.getElementById("play");
-  if(timer){ clearInterval(timer); timer=null; b.textContent="▶ play"; b.classList.add("primary"); return; }
-  b.textContent="❚❚ pause"; b.classList.remove("primary");
-  const tick=()=>{ if(cur>=TRACE.length-1){ goto(0); } else goto(cur+1); };
-  const spd=document.getElementById("speed").value;
-  timer=setInterval(tick, 1100 - spd*50);
-}
+let cur=0,timer=null;
+function goto(i){cur=Math.max(0,Math.min(TRACE.length-1,i));show(cur);}
+function playPause(){const b=document.getElementById("play");
+  if(timer){clearInterval(timer);timer=null;b.textContent="▶ play";b.classList.add("primary");return;}
+  b.textContent="❚❚ pause";b.classList.remove("primary");
+  timer=setInterval(()=>{cur>=TRACE.length-1?goto(0):goto(cur+1);},1100-document.getElementById("speed").value*50);}
 document.getElementById("fwd").onclick=()=>goto(cur+1);
 document.getElementById("back").onclick=()=>goto(cur-1);
-document.getElementById("reset").onclick=()=>{ if(timer)playPause(); goto(0); };
+document.getElementById("reset").onclick=()=>{if(timer)playPause();goto(0);};
 document.getElementById("play").onclick=playPause;
-document.getElementById("speed").oninput=()=>{ if(timer){ playPause(); playPause(); } };
-
-render();
-goto(0);
+document.getElementById("speed").oninput=()=>{if(timer){playPause();playPause();}};
+render(); goto(0);
 </script>
 </body>
 </html>
