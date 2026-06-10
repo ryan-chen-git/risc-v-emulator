@@ -39,9 +39,27 @@ std::vector<PinRef> component_pins(const Comp& c, const CircFile& cf) {
         pins.push_back({ off(facing, -40, -10, c.loc), false, w, "in0" });
         pins.push_back({ off(facing, -40,  10, c.loc), false, 5, "shamt" });
         pins.push_back({ c.loc, true, w, "out" });
+    } else if (c.name == "Multiplexer") {
+        int sel = iattr(c, "select", 1);
+        int n = 1 << sel;
+        if (sel == 1) {
+            pins.push_back({ off(facing, -30, -10, c.loc), false, w, "in0" });
+            pins.push_back({ off(facing, -30,  10, c.loc), false, w, "in1" });
+            pins.push_back({ off(facing, -20,  20, c.loc), false, sel, "sel" });
+        } else {
+            for (int k = 0; k < n; k++) {
+                int y = -((n - 1) * 10) + k * 20;  // centered, spaced 20
+                pins.push_back({ off(facing, -60, y, c.loc), false, w, "in" + std::to_string(k) });
+            }
+            pins.push_back({ off(facing, -20, 30, c.loc), false, sel, "sel" });
+        }
+        pins.push_back({ c.loc, true, w, "out" });
+    } else if (c.name == "Register") {
+        pins.push_back({ off(facing,  0, 30, c.loc), false, w, "D" });
+        pins.push_back({ off(facing, 70, 30, c.loc), true,  w, "Q" });
+        pins.push_back({ off(facing,  0, 70, c.loc), false, 1, "clk" });
     }
-    // Multiplexer, Register, Splitter, Bit Extender, gates, and subcircuit
-    // instances are added next, validated by the orphan check.
+    // Splitter, Bit Extender, and subcircuit instances are added next.
     return pins;
 }
 
