@@ -56,6 +56,10 @@ void Engine::step() {
     sig["WriteData"] = writeData;  sig["DataToReg"] = dataToReg;  sig["MemAddress"] = memaddr;
     sig["ASel"] = c.asel;  sig["BSel"] = c.bsel;  sig["ALUSel"] = c.alusel;
     sig["WBSel"] = c.wbsel;  sig["PCSel"] = c.pcsel;  sig["RegWEn"] = c.regwen;
+    // Debug register outputs, sampled before this cycle's writeback to match the
+    // circuit's registered ra/sp/.../a0 pins.
+    sig["ra"] = regs[1];  sig["sp"] = regs[2];  sig["t0"] = regs[5];  sig["t1"] = regs[6];
+    sig["t2"] = regs[7];  sig["s0"] = regs[8];  sig["s1"] = regs[9];  sig["a0"] = regs[10];
 
     // ---- clock edge: commit writes and latch the registers ----
     if (c.memen && c.memwr) {

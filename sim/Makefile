@@ -3,16 +3,21 @@ CXXFLAGS := -std=c++17 -O2 -Wall -Wextra -MMD -MP
 
 SIM_SRC := main.cpp circ.cpp xml.cpp net.cpp
 RUN_SRC := run.cpp engine.cpp blocks.cpp
+VAL_SRC := validate.cpp engine.cpp blocks.cpp
 SIM_OBJ := $(SIM_SRC:%.cpp=build/%.o)
 RUN_OBJ := $(RUN_SRC:%.cpp=build/%.o)
-DEP     := $(SIM_OBJ:.o=.d) $(RUN_OBJ:.o=.d)
+VAL_OBJ := $(VAL_SRC:%.cpp=build/%.o)
+DEP     := $(SIM_OBJ:.o=.d) $(RUN_OBJ:.o=.d) $(VAL_OBJ:.o=.d)
 
-all: build/sim build/run
+all: build/sim build/run build/validate
 
 build/sim: $(SIM_OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 build/run: $(RUN_OBJ)
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
+build/validate: $(VAL_OBJ)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 build/%.o: %.cpp | build
