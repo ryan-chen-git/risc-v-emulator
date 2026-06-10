@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <map>
+#include <set>
+#include <string>
 
 static void print_summary(const CircFile& cf) {
     std::printf("main circuit: %s\n", cf.main.c_str());
@@ -79,9 +81,34 @@ static void dump_geom(const Circuit& c, int radius) {
     }
 }
 
+// Show the datapath by name: each mux/register/adder pin and the signal on the
+// net it connects to (a net's signal is the set of tunnel labels on it).
+static void dump_map(const Circuit& c, const CircFile& cf) {
+    Netlist nl = build_netlist(c, cf);
+    std::map<int, std::set<std::string>> net_tun;
+    for (size_t i = 0; i < c.comps.size(); i++)
+        if (c.comps[i].name == "Tunnel" && !nl.pin_net[i].empty())
+            net_tun[nl.pin_net[i][0]].insert(c.comps[i].attr("label"));
+    auto netname = [&](int net) {
+        std::string s;
+        for (const std::string& t : net_tun[net]) s += "#" + t + " ";
+        if (s.empty()) s = "net" + std::to_string(net) + " ";
+        return s.substr(0, s.size() - 1);
+    };
+    for (size_t i = 0; i < c.comps.size(); i++) {
+        const Comp& comp = c.comps[i];
+        if (comp.name != "Multiplexer" && comp.name != "Register" && comp.name != "Adder")
+            continue;
+        std::printf("%-12s @(%4d,%4d):", comp.name.c_str(), comp.loc.x, comp.loc.y);
+        for (size_t j = 0; j < nl.pins[i].size(); j++)
+            std::printf("  %s=[%s]", nl.pins[i][j].role.c_str(), netname(nl.pin_net[i][j]).c_str());
+        std::printf("\n");
+    }
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::printf("usage: sim <file.circ> [circuit] [geom]\n");
+        std::printf("usage: sim <file.circ> [circuit] [geom|map]\n");
         return 1;
     }
     CircFile cf = parse_circ(argv[1]);
@@ -91,8 +118,9 @@ int main(int argc, char** argv) {
             std::printf("no circuit named '%s'\n", argv[2]);
             return 1;
         }
-        if (argc >= 4 && std::string(argv[3]) == "geom")
-            dump_geom(it->second, argc >= 5 ? std::atoi(argv[4]) : 50);
+        std::string mode = argc >= 4 ? argv[3] : "";
+        if (mode == "geom") dump_geom(it->second, argc >= 5 ? std::atoi(argv[4]) : 50);
+        else if (mode == "map") dump_map(it->second, cf);
         else dump_netlist(it->second, cf);
     } else {
         print_summary(cf);
