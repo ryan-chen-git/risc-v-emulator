@@ -16,7 +16,7 @@ BOXES = [
   [180,316,84,158,"IMEM",222,334],
   [354,300,168,226,"RegFile",438,324],
   [430,540,78,44,"Imm",469,558,"Gen",469,572],
-  [624,372,92,46,"Branch",670,390,"Comp",670,404],
+  [624,394,92,44,"Branch",670,411,"Comp",670,425],
   [908,300,148,226,"DMEM",982,324],
 ]
 CLK = [[150,278],[505,516],[1040,516]]
@@ -33,7 +33,7 @@ TEXT = [
   [198,410,"addr","port","start"],[244,386,"inst","port","end"],
   [360,320,"wdata","port","start"],[360,388,"rd","port","start"],[360,432,"rs1","port","start"],[360,476,"rs2","port","start"],[360,518,"RegWEn","port","start"],
   [515,382,"rdata1","port","end"],[515,458,"rdata2","port","end"],
-  [916,378,"addr","port","start"],[916,520,"wdata","port","start"],[1050,452,"rdata","port","end"],[982,548,"MemRW","port","middle"],
+  [916,378,"addr","port","start"],[916,512,"wdata","port","start"],[1050,452,"rdata","port","end"],[982,548,"MemRW","port","middle"],
   [800,352,"A","port","middle"],[800,408,"B","port","middle"],[824,402,"ALU","lbl","middle"],
   [22,238,"PC+4","sig","end"],[22,274,"ALU","sig","end"],
   [1086,384,"ALU","sig","end"],[1086,418,"PC+4","sig","end"],[1086,450,"Mem","sig","end"],
@@ -42,9 +42,9 @@ TEXT = [
 ]
 # bottom control: xCenter,w,label,sig,topY
 CTRL = [
-  [104,60,"PCSel","PCSel",290],[300,128,"inst[31:0]","",386],[398,80,"RegWEn","RegWEn",518],
-  [476,76,"ImmSel","ImmSel",584],[652,30,"BrUn","BrUn",418],[682,28,"BrEq","BrEq",372],
-  [712,28,"BrLT","BrLt",372],[744,34,"BSel","BSel",516],[780,30,"ASel","ASel",404],
+  [104,60,"PCSel","PCSel",290],[300,128,"inst[31:0]","",624],[398,80,"RegWEn","RegWEn",518],
+  [476,76,"ImmSel","ImmSel",584],[652,30,"BrUn","BrUn",438],[682,28,"BrEq","BrEq",438],
+  [712,28,"BrLT","BrLt",438],[744,34,"BSel","BSel",516],[780,30,"ASel","ASel",404,738],
   [832,66,"ALUSel","ALUSel",430],[982,68,"MemRW","MemRW",526],[1140,80,"WBSel","WBSel",464],
 ]
 # wires: pts, signal, [vx,vy]
@@ -56,17 +56,16 @@ WIRES = [
   ([[168,258],[168,410],[180,410]],"PC",None),
   ([[207,258],[715,258],[715,338],[724,338]],"PC",None),
   ([[264,386],[300,386]],"inst",None),
-  ([[300,386],[300,560]],"inst",None),
+  ([[300,386],[300,624]],"inst",None),
   ([[300,386],[354,386]],"inst",None),
   ([[300,430],[354,430]],"inst",None),
   ([[300,474],[354,474]],"inst",None),
   ([[300,560],[430,560]],"inst",None),
-  ([[300,476],[300,640]],"inst",None),
   ([[522,382],[724,382],[724,388]],"rd1",[560,376]),
-  ([[560,382],[560,392],[624,392]],"rd1",None),
+  ([[600,382],[600,400],[624,400]],"rd1",None),
   ([[522,458],[724,458],[724,456]],"rd2",[560,452]),
-  ([[590,458],[590,404],[624,404]],"rd2",None),
-  ([[640,458],[640,536],[908,536]],"rd2",None),
+  ([[600,458],[600,432],[624,432]],"rd2",None),
+  ([[640,458],[640,536],[890,536],[890,510],[908,510]],"rd2",None),
   ([[508,562],[724,562],[724,502]],"imm",[560,556]),
   ([[752,365],[788,365],[788,355]],"A",[762,360]),
   ([[752,477],[770,477],[770,400],[788,400]],"B",[762,472]),
@@ -82,8 +81,8 @@ WIRES = [
   ([[207,180],[1110,180]],"PCp4",None),
 ]
 # junction dots where wires branch
-JUNC=[[207,258],[168,258],[300,386],[300,430],[300,474],[300,560],[560,382],
-      [590,458],[640,458],[885,365],[1100,150],[1110,180],[207,180]]
+JUNC=[[207,258],[168,258],[300,386],[300,430],[300,474],[300,560],[600,382],
+      [600,458],[640,458],[885,365],[1100,150],[1110,180],[207,180]]
 
 VALMAP={"NextPC":"NextPC","PC":"expc","PCp4":"expcp4","inst":"exi","rd1":"ReadData1","rd2":"ReadData2",
  "imm":"Immediate","A":"ASelOut","B":"BSelOut","ALU":"ALUResult","mem":"DataToReg","wdata":"WriteData"}
@@ -121,6 +120,12 @@ CSS = """
 .val{font:700 10px Consolas,monospace;fill:#1a7f37}
 """
 def esc(s): return str(s).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+CW={"title":9.0,"lbl":7.0,"port":6.0,"bit":5.2,"idx":6.0,"sig":6.0,"ctl":5.5}
+def T(x,y,s,cls,anchor="start"):
+    s=esc(s); w=len(s)*CW.get(cls,6.0)
+    rx=x-w/2 if anchor=="middle" else (x-w if anchor=="end" else x)
+    return ('<rect x="%g" y="%g" width="%g" height="13" fill="#fff"/>'%(rx-1.5,y-11,w+3)
+            +'<text class="%s" x="%d" y="%d" text-anchor="%s">%s</text>'%(cls,x,y,anchor,s))
 
 def build_svg(t=None):
     o=['<svg viewBox="-32 0 1240 660" xmlns="http://www.w3.org/2000/svg" style="background:#fff">']
@@ -133,24 +138,29 @@ def build_svg(t=None):
             txt=""
             if t:
                 v=uval(t,s); txt=hexs(v) if s in("PC","PCp4","inst") else str(signed(v))
+            o.append('<rect id="vb%d" x="%d" y="%d" width="38" height="12" fill="#fff" opacity="%d"/>'%(i,vp[0]-3,vp[1]-10,1 if txt else 0))
             o.append('<text id="v%d" class="val" x="%d" y="%d">%s</text>'%(i,vp[0],vp[1],esc(txt)))
     for b in BOXES:
         o.append('<rect class="box" x="%d" y="%d" width="%d" height="%d"/>'%(b[0],b[1],b[2],b[3]))
-        o.append('<text class="lbl" x="%d" y="%d" text-anchor="middle">%s</text>'%(b[5],b[6],esc(b[4])))
-        if len(b)>7: o.append('<text class="lbl" x="%d" y="%d" text-anchor="middle">%s</text>'%(b[8],b[9],esc(b[7])))
+        o.append(T(b[5],b[6],b[4],"lbl","middle"))
+        if len(b)>7: o.append(T(b[8],b[9],b[7],"lbl","middle"))
     for c in CLK: o.append('<path class="box" d="M%d,%d l8,-9 l8,9 z"/>'%(c[0],c[1]))
     o.append('<path class="alu" d="%s"/>'%ALU)
     for k,m in MUX.items():
         fire=" fire" if (t and k=="pcsel" and t["PCSel"]==1) else ""
         o.append('<polygon id="mux_%s" class="mux%s" points="%s"/>'%(k,fire,m["pts"]))
-        for lab,x,y in m["idx"]: o.append('<text class="idx" x="%d" y="%d">%s</text>'%(x,y,lab))
+        for lab,x,y in m["idx"]: o.append(T(x,y,lab,"idx"))
     for tx in TEXT:
-        o.append('<text class="%s" x="%d" y="%d" text-anchor="%s">%s</text>'%(tx[3],tx[0],tx[1],tx[4],esc(tx[2])))
+        o.append(T(tx[0],tx[1],tx[2],tx[3],tx[4]))
     for c in CTRL:
         x=c[0]-c[1]//2
         o.append('<rect class="box" x="%d" y="624" width="%d" height="22"/>'%(x,c[1]))
-        o.append('<text class="ctl" x="%d" y="639">%s</text>'%(c[0],esc(c[2])))
-        o.append('<path class="wire" d="M%d,624 L%d,%d"/>'%(c[0],c[0],c[4]))
+        o.append(T(c[0],639,c[2],"ctl","middle"))
+        tgt=c[5] if len(c)>5 else c[0]
+        if tgt==c[0]:
+            o.append('<path class="wire" d="M%d,624 L%d,%d"/>'%(c[0],c[0],c[4]))
+        else:
+            o.append('<path class="wire" d="M%d,624 L%d,%d L%d,%d L%d,%d"/>'%(c[0],c[0],c[4]+12,tgt,c[4]+12,tgt,c[4]))
     for j in JUNC:
         o.append('<circle cx="%d" cy="%d" r="3" fill="#222"/>'%(j[0],j[1]))
     o.append("</svg>")
@@ -188,7 +198,8 @@ function show(i){const f=FRAMES[i];
  $("cyc").textContent="cycle "+f.cyc+" / "+FRAMES.length;$("asm").textContent=f.asm;
  document.querySelectorAll(".wire").forEach(e=>e.classList.remove("on"));
  f.on.forEach(k=>{const e=$("w"+k);if(e)e.classList.add("on");});
- for(const k in f.vals){const e=$("v"+k);if(e)e.textContent=f.vals[k];}
+ document.querySelectorAll("[id^=vb]").forEach(b=>b.setAttribute("opacity",0));
+ for(const k in f.vals){const e=$("v"+k);if(e)e.textContent=f.vals[k];const b=$("vb"+k);if(b)b.setAttribute("opacity",1);}
  const m=$("mux_pcsel");if(m)m.classList.toggle("fire",f.fire);}
 let cur=0,timer=null;
 function go(i){cur=Math.max(0,Math.min(FRAMES.length-1,i));show(cur);}
@@ -207,7 +218,7 @@ def build_html():
     print("wrote datapath.html (",len(FRAMES),"cycles )")
 
 cyc = int(sys.argv[1]) if len(sys.argv)>1 else 6
-svg = build_svg(TRACE[cyc-1])
-cairosvg.svg2png(bytestring=svg.encode(), write_to="render.png", output_width=1500, background_color="white")
+svg = build_svg(None if cyc==0 else TRACE[cyc-1])
+cairosvg.svg2png(bytestring=svg.encode(), write_to="render.png", output_width=1900, background_color="white")
 print("wrote render.png for cycle", cyc, "(", len(WIRES), "wires )")
 build_html()
