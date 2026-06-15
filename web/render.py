@@ -34,7 +34,7 @@ TEXT = [
   [360,320,"wdata","port","start"],[360,388,"rd","port","start"],[360,432,"rs1","port","start"],[360,476,"rs2","port","start"],[360,518,"RegWEn","port","start"],
   [515,382,"rdata1","port","end"],[515,458,"rdata2","port","end"],
   [916,378,"addr","port","start"],[916,512,"wdata","port","start"],[1050,452,"rdata","port","end"],[982,548,"MemRW","port","middle"],
-  [800,352,"A","port","middle"],[800,408,"B","port","middle"],[824,402,"ALU","lbl","middle"],
+  [803,334,"A","port","middle"],[800,408,"B","port","middle"],[824,402,"ALU","lbl","middle"],
   [22,238,"PC+4","sig","end"],[22,274,"ALU","sig","end"],
   [1086,384,"ALU","sig","end"],[1086,418,"PC+4","sig","end"],[1086,450,"Mem","sig","end"],
   [300,378,"inst[11:7]","bit","start"],[300,422,"inst[19:15]","bit","start"],[300,466,"inst[24:20]","bit","start"],[300,556,"inst[31:7]","bit","start"],
@@ -67,7 +67,7 @@ WIRES = [
   ([[600,458],[600,432],[624,432]],"rd2",None),
   ([[640,458],[640,536],[890,536],[890,510],[908,510]],"rd2",None),
   ([[508,562],[724,562],[724,502]],"imm",[560,556]),
-  ([[752,365],[788,365],[788,355]],"A",[762,360]),
+  ([[752,365],[772,365],[772,330],[788,330]],"A",[758,360]),
   ([[752,477],[770,477],[770,400],[788,400]],"B",[762,472]),
   ([[872,365],[885,365]],"ALU",None),
   ([[885,365],[885,150]],"ALU",None),
@@ -137,7 +137,8 @@ def build_svg(t=None):
         if vp:
             txt=""
             if t:
-                v=uval(t,s); txt=hexs(v) if s in("PC","PCp4","inst") else str(signed(v))
+                v=uval(t,s)
+                if v!=0: txt=hexs(v) if s in("PC","PCp4","inst") else str(signed(v))
             o.append('<rect id="vb%d" x="%d" y="%d" width="38" height="12" fill="#fff" opacity="%d"/>'%(i,vp[0]-3,vp[1]-10,1 if txt else 0))
             o.append('<text id="v%d" class="val" x="%d" y="%d">%s</text>'%(i,vp[0],vp[1],esc(txt)))
     for b in BOXES:
@@ -168,7 +169,7 @@ def build_svg(t=None):
 
 def frame(t):
     on=[i for i,(p,s,vp) in enumerate(WIRES) if uval(t,s)!=0]
-    vals={i:(hexs(uval(t,s)) if s in("PC","PCp4","inst") else str(signed(uval(t,s)))) for i,(p,s,vp) in enumerate(WIRES) if vp}
+    vals={i:(hexs(uval(t,s)) if s in("PC","PCp4","inst") else str(signed(uval(t,s)))) for i,(p,s,vp) in enumerate(WIRES) if vp and uval(t,s)!=0}
     return {"on":on,"vals":vals,"fire":t["PCSel"]==1,"asm":disasm(t["exi"])+"   PC="+hexs(t["expc"]),"cyc":t["cyc"]}
 FRAMES=[frame(t) for t in TRACE]
 
@@ -199,6 +200,7 @@ function show(i){const f=FRAMES[i];
  document.querySelectorAll(".wire").forEach(e=>e.classList.remove("on"));
  f.on.forEach(k=>{const e=$("w"+k);if(e)e.classList.add("on");});
  document.querySelectorAll("[id^=vb]").forEach(b=>b.setAttribute("opacity",0));
+ document.querySelectorAll(".val").forEach(e=>e.textContent="");
  for(const k in f.vals){const e=$("v"+k);if(e)e.textContent=f.vals[k];const b=$("vb"+k);if(b)b.setAttribute("opacity",1);}
  const m=$("mux_pcsel");if(m)m.classList.toggle("fire",f.fire);}
 let cur=0,timer=null;
