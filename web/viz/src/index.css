@@ -1,0 +1,39 @@
+/* Design tokens — ui-ux-pro-max "Dark Mode (OLED)" developer-precision system */
+:root {
+  --bg: #0F172A;
+  --bg-deep: #0B1120;
+  --panel: #1E293B;
+  --muted: #272F42;
+  --border: #334155;
+  --border-strong: #475569;
+  --fg: #F8FAFC;
+  --fg-dim: #94A3B8;
+  --fg-faint: #64748B;
+  --accent: #22C55E;
+  --accent-deep: #052E16;
+  --danger: #EF4444;
+  --ink: #E2E8F0;            /* datapath component strokes/labels */
+  --wire-idle: #334155;
+  --lane-a: #1B2536;
+  --lane-b: #1E293B;
+  --grid: #27334A;
+  --font-ui: Inter, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 600px at 50% -10%, #16213B 0%, var(--bg) 55%, var(--bg-deep) 100%);
+  min-height: 100vh;
+  color: var(--fg);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

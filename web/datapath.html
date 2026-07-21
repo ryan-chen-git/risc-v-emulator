@@ -24,51 +24,54 @@ svg{width:100%;height:auto;display:block;max-width:1100px;margin:0 auto}
 <style>
 .box{fill:none;stroke:#222;stroke-width:1.1}.alu{fill:none;stroke:#222;stroke-width:1.1}
 .mux{fill:none;stroke:#222;stroke-width:1.1}.mux.fire{stroke:#cf222e;stroke-width:1.6}
-.wire{stroke:#222;stroke-width:1.1;fill:none}.wire.on{stroke:#1a7f37;stroke-width:1.5}
+.wire{stroke:#d0d7de;stroke-width:1.1;fill:none}.wire.on{stroke-width:2.1;stroke-dasharray:6 4;animation:flow .7s linear infinite}
+.wire.cpc.on{stroke:#0969da}.wire.cinst.on{stroke:#8250df}.wire.creg.on{stroke:#137a6b}.wire.cimm.on{stroke:#bf8700}.wire.calu.on{stroke:#cf222e}.wire.cmem.on{stroke:#bc4c00}.wire.cwb.on{stroke:#1a7f37}
+@keyframes flow{to{stroke-dashoffset:-10}}
 .title{font:700 22px Inter,sans-serif;text-anchor:middle;fill:#1a1a1a}
 .lbl{font:16px Inter,sans-serif;fill:#1a1a1a}.lbl2{font:13px Inter,sans-serif;fill:#1a1a1a}.port{font:500 10px Inter,sans-serif;fill:#1a1a1a}
 .bit{font:500 7px Inter,sans-serif;fill:#333}.idx{font:400 12px Inter,sans-serif;fill:#1a1a1a}
 .sig{font:500 9px Inter,sans-serif;fill:#1a1a1a}.ctl{font:700 8px Inter,sans-serif;fill:#1a1a1a;text-anchor:middle}
-.val{font:700 8px Consolas,monospace;fill:#1a7f37}
+.val{font:700 8px Consolas,monospace;fill:#57606a}
+.val.cpc{fill:#0969da}.val.cinst{fill:#8250df}.val.creg{fill:#137a6b}.val.cimm{fill:#bf8700}.val.calu{fill:#cf222e}.val.cmem{fill:#bc4c00}.val.cwb{fill:#1a7f37}
 </style>
-<path id="w0" class="wire" d="M69,181 L84.5,181"/>
-<text id="v0" class="val" x="71" y="176"></text>
-<path id="w1" class="wire" d="M107,179 L447,179 L447,214 L488,214"/>
-<text id="v1" class="val" x="250" y="174"></text>
-<path id="w2" class="wire" d="M140,179 L140,162.5"/>
-<path id="w3" class="wire" d="M113,179 L113,274 L123.5,274"/>
-<path id="w4" class="wire" d="M140,145 L140,126"/>
-<path id="w5" class="wire" d="M23,126 L706,126"/>
-<path id="w6" class="wire" d="M23,126 L23,170 L53.5,170"/>
-<path id="w7" class="wire" d="M706,126 L706,281 L744.5,281"/>
-<path id="w8" class="wire" d="M14,110 L713,110"/>
-<path id="w9" class="wire" d="M14,110 L14,193 L53.5,193"/>
-<path id="w10" class="wire" d="M713,110 L713,259 L744.5,259"/>
-<path id="w11" class="wire" d="M576,255 L598,255 L598,110"/>
-<path id="w12" class="wire" d="M598,255 L610.5,255"/>
-<text id="v12" class="val" x="601" y="250"></text>
-<path id="w13" class="wire" d="M169,257 L238.5,257"/>
-<path id="w14" class="wire" d="M192,257 L192,422.5"/>
-<path id="w15" class="wire" d="M192,289 L238.5,289"/>
-<path id="w16" class="wire" d="M192,324 L238.5,324"/>
-<path id="w17" class="wire" d="M192,377 L286.5,377"/>
-<path id="w18" class="wire" d="M348,236 L488,236"/>
-<text id="v18" class="val" x="416" y="231"></text>
-<path id="w19" class="wire" d="M401,236 L401,257 L418.5,257"/>
-<path id="w20" class="wire" d="M348,306 L488,306"/>
-<text id="v20" class="val" x="416" y="301"></text>
-<path id="w21" class="wire" d="M401,306 L401,271 L418.5,271"/>
-<path id="w22" class="wire" d="M480,306 L480,359 L610.5,359"/>
-<path id="w23" class="wire" d="M335,378 L401,378 L401,329 L488,329"/>
-<text id="v23" class="val" x="355" y="373"></text>
-<path id="w24" class="wire" d="M502.5,225 L529.5,225"/>
-<text id="v24" class="val" x="515" y="220"></text>
-<path id="w25" class="wire" d="M502.5,317 L529.5,317"/>
-<text id="v25" class="val" x="515" y="312"></text>
-<path id="w26" class="wire" d="M698,303 L744.5,303"/>
-<text id="v26" class="val" x="705" y="298"></text>
-<path id="w27" class="wire" d="M762,281 L779,281 L779,94 L206,94 L206,215 L238.5,215"/>
-<text id="v27" class="val" x="430" y="90"></text>
+<path id="w0" class="wire cpc" d="M69,181 L84.5,181"/>
+<text id="v0" class="val cpc" x="71" y="176"></text>
+<path id="w1" class="wire cpc" d="M107,179 L447,179 L447,214 L488,214"/>
+<text id="v1" class="val cpc" x="250" y="174"></text>
+<path id="w2" class="wire cpc" d="M140,179 L140,162.5"/>
+<path id="w3" class="wire cpc" d="M113,179 L113,274 L123.5,274"/>
+<path id="w4" class="wire cpc" d="M140,145 L140,126"/>
+<path id="w5" class="wire cpc" d="M23,126 L706,126"/>
+<path id="w6" class="wire cpc" d="M23,126 L23,170 L53.5,170"/>
+<path id="w7" class="wire cpc" d="M706,126 L706,281 L744.5,281"/>
+<path id="w8" class="wire calu" d="M14,110 L713,110"/>
+<path id="w9" class="wire calu" d="M14,110 L14,193 L53.5,193"/>
+<path id="w10" class="wire calu" d="M713,110 L713,259 L744.5,259"/>
+<path id="w11" class="wire calu" d="M576,255 L598,255 L598,110"/>
+<path id="w12" class="wire calu" d="M598,255 L610.5,255"/>
+<text id="v12" class="val calu" x="601" y="250"></text>
+<path id="w13" class="wire cinst" d="M169,257 L238.5,257"/>
+<path id="w14" class="wire cinst" d="M192,257 L192,422.5"/>
+<path id="w15" class="wire cinst" d="M192,289 L238.5,289"/>
+<path id="w16" class="wire cinst" d="M192,324 L238.5,324"/>
+<path id="w17" class="wire cinst" d="M192,377 L286.5,377"/>
+<path id="w18" class="wire creg" d="M348,236 L488,236"/>
+<text id="v18" class="val creg" x="416" y="231"></text>
+<path id="w19" class="wire creg" d="M401,236 L401,257 L418.5,257"/>
+<path id="w20" class="wire creg" d="M348,306 L488,306"/>
+<text id="v20" class="val creg" x="416" y="301"></text>
+<path id="w21" class="wire creg" d="M401,306 L401,271 L418.5,271"/>
+<path id="w22" class="wire creg" d="M480,306 L480,359 L610.5,359"/>
+<path id="w23" class="wire cimm" d="M335,378 L401,378 L401,329 L488,329"/>
+<text id="v23" class="val cimm" x="355" y="373"></text>
+<path id="w24" class="wire creg" d="M502.5,225 L529.5,225"/>
+<text id="v24" class="val creg" x="515" y="220"></text>
+<path id="w25" class="wire creg" d="M502.5,317 L529.5,317"/>
+<text id="v25" class="val creg" x="515" y="312"></text>
+<path id="w26" class="wire cmem" d="M698,303 L744.5,303"/>
+<text id="v26" class="val cmem" x="705" y="298"></text>
+<path id="w27" class="wire cwb" d="M762,281 L779,281 L779,94 L206,94 L206,215 L238.5,215"/>
+<text id="v27" class="val cwb" x="430" y="90"></text>
 <rect class="box" x="88" y="153" width="19" height="61"/>
 <text class="lbl2" x="97" y="187" text-anchor="middle" style="font-size:10px">PC</text>
 <rect class="box" x="127" y="145" width="26" height="14"/>

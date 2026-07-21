@@ -1,0 +1,107 @@
+/* ================= app shell ================= */
+.app { max-width: 1180px; margin: 0 auto; padding: 18px 20px 36px; color: var(--fg); }
+.titlebar { display: flex; align-items: baseline; gap: 12px; }
+h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: -0.01em; text-shadow: 0 0 10px rgba(34, 197, 94, 0.18); }
+.sub { font-size: 12px; color: var(--fg-faint); }
+.bar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+
+button {
+  font: 500 13px var(--font-ui);
+  background: var(--panel); color: var(--fg);
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  padding: 7px 15px; cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, transform 120ms ease;
+}
+button:hover:not(:disabled) { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.25), 0 0 14px rgba(34, 197, 94, 0.10); }
+button:active:not(:disabled) { transform: translateY(1px); }
+button.primary { background: var(--accent); color: var(--accent-deep); border-color: var(--accent); font-weight: 600; }
+button.primary:hover:not(:disabled) { background: #34D877; box-shadow: 0 0 16px rgba(34, 197, 94, 0.35); }
+button:disabled { opacity: 0.4; cursor: default; }
+
+.asm { font: 700 14px var(--font-mono); color: var(--imm, #FBBF24); color: #FBBF24; }
+.navlink { font-size: 13px; color: #60A5FA; text-decoration: none; transition: color 160ms ease; }
+.navlink:hover { color: #93C5FD; text-decoration: underline; }
+.stagebar { margin-top: 8px; min-height: 20px; font-size: 13px; color: var(--fg-dim); }
+
+/* ================= clock panel ================= */
+.clockpanel {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 12px; padding: 10px 12px;
+  background: linear-gradient(180deg, var(--panel) 0%, #1A2436 100%);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.clockpanel button { padding: 6px 12px; font-size: 12.5px; }
+.clockpanel button.primary { background: #7F1D1D; color: #FECACA; border-color: #B91C1C; }
+.clockpanel button.primary:hover:not(:disabled) { box-shadow: 0 0 12px rgba(239, 68, 68, 0.3); border-color: var(--danger); }
+.freqlbl select {
+  font: 500 12.5px var(--font-ui); color: var(--fg);
+  padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: 8px;
+  background: var(--panel); cursor: pointer; transition: border-color 180ms ease;
+}
+.freqlbl select:hover { border-color: var(--accent); }
+.clkstatus { font-size: 12.5px; color: var(--fg-dim); margin-left: 4px; }
+.asm-inline { font: 700 12px var(--font-mono); color: #F87171; }
+.pc-inline { font: 700 12px var(--font-mono); color: #60A5FA; }
+.clkface.high { filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.45)); }
+
+/* ================= datapath diagram (dark overrides for the exported SVG) ================= */
+.stage { margin-top: 10px; padding: 14px 10px 8px; background: rgba(15, 23, 42, 0.55); border: 1px solid var(--border); border-radius: 12px; }
+.stage svg { width: 100%; height: auto; display: block; max-width: 1120px; margin: 0 auto; background: transparent !important; }   /* the exported SVG carries an inline background:#fff */
+
+.stage .wire { stroke: var(--wire-idle); }
+.stage .wire.on { animation: none !important; stroke-dasharray: none !important; stroke-width: 2.4px; }
+.stage svg .wire.cpc.on { stroke: #60A5FA; }
+.stage svg .wire.cinst.on { stroke: #C084FC; }
+.stage svg .wire.creg.on { stroke: #2DD4BF; }
+.stage svg .wire.cimm.on { stroke: #FBBF24; }
+.stage svg .wire.calu.on { stroke: #F87171; }
+.stage svg .wire.cmem.on { stroke: #FB923C; }
+.stage svg .wire.cwb.on { stroke: #4ADE80; }
+
+.stage svg .box, .stage svg .alu, .stage svg .mux { stroke: var(--ink); }
+.stage svg .mux.fire { stroke: #F87171; }
+.stage svg .title { fill: var(--fg); }
+.stage svg .lbl, .stage svg .lbl2 { fill: var(--ink); }
+.stage svg .port { fill: var(--fg-dim); }
+.stage svg .ctl, .stage svg .sig { fill: var(--ink); }
+.stage svg [fill="#222"] { fill: var(--ink); }
+.stage svg [stroke="#222"] { stroke: var(--ink); }
+
+.token { pointer-events: none; }
+.tokval { font: 700 8px var(--font-mono); paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
+.stage .trace { fill: none; stroke-width: 2.4px; stroke-linecap: butt; }   /* butt: zero-length dashes in the sub-range pattern must render nothing */
+.sval { font: 700 8.5px var(--font-mono); paint-order: stroke; stroke: var(--bg); stroke-width: 2.5px; stroke-linejoin: round; }
+
+/* ================= timing diagram ================= */
+.chronoblock { margin-top: 16px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.chronobar { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--muted); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--fg-dim); }
+.chronotitle { font-weight: 700; font-size: 12.5px; color: var(--fg); }
+.chronobar button { padding: 1px 10px; font-size: 13px; line-height: 1.4; }
+.zoomlbl { color: var(--fg-faint); font-size: 11px; min-width: 62px; }
+.lanepick { display: inline-flex; align-items: center; gap: 4px; font: 600 11px var(--font-mono); color: var(--fg-dim); cursor: pointer; }
+.lanepick input { accent-color: var(--accent); cursor: pointer; }
+.chronohint { margin-left: auto; color: var(--fg-faint); font-size: 11px; }
+.chronowrap { display: flex; align-items: stretch; }
+.chrono-left { border-collapse: collapse; flex: none; border-right: 1px solid var(--border); }
+.chrono-left th { font: 600 10.5px var(--font-ui); color: var(--fg-faint); text-align: left; padding: 3px 8px; height: 20px; border-bottom: 1px solid var(--border); }
+.chrono-left td { font: 700 11px var(--font-mono); padding: 0 8px; border-top: 1px solid var(--border); }
+.lane-cellval { color: var(--fg); text-align: right; }
+.chrono-scroll { overflow-x: auto; flex: 1; }
+.chrono { display: block; cursor: crosshair; }
+.lane-lbl { font: 600 10.5px var(--font-ui); fill: var(--fg-dim); }
+.lane-val { font: 700 9.5px var(--font-mono); fill: var(--fg); }
+.busbox { fill: var(--bg); }
+.curline { stroke: #F87171; stroke-width: 1.4; }
+.curchip-bg { fill: #3A2E14; stroke: #A16207; stroke-width: 0.6; }
+.curlbl { font: 600 8.5px var(--font-ui); fill: #FBBF24; }
+
+/* ================= legend ================= */
+.legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 18px; font-size: 12px; color: var(--fg-dim); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px currentColor; }
+
+@media (max-width: 768px) {
+  .app { padding: 12px 12px 28px; }
+  .clockpanel { gap: 6px; }
+  .chronohint { display: none; }
+}

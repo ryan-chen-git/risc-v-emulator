@@ -1,0 +1,13 @@
+.arch svg { width: 100%; height: auto; display: block; max-width: 940px; margin: 10px auto 0; }
+.arch .ct { font: 600 13px var(--font-ui); }
+.arch .mt { font: 600 11px var(--font-ui); fill: var(--fg); }
+.arch .cap { font: 11.5px var(--font-ui); fill: var(--fg-dim); }
+.arch .mono { font: 10.5px var(--font-mono); fill: var(--ink); }
+.arch .alab { font: 11px var(--font-ui); fill: var(--fg-faint); }
+.arch .chip { fill: var(--bg); stroke: var(--border-strong); }
+.arch .card { fill: var(--panel); stroke: var(--border-strong); }
+.arch .dash { fill: rgba(30, 41, 59, 0.45); stroke: var(--fg-faint); stroke-dasharray: 5 4; }
+.arch .wireln { stroke: var(--fg-faint); stroke-width: 1.6; fill: none; }
+.arch .ah { fill: var(--fg-faint); }
+.arch a text { fill: #60A5FA; }
+.arch a:hover text { text-decoration: underline; }

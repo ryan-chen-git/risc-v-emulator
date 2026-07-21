@@ -102,6 +102,9 @@ TAPS=[[140,126],[598,110]]   # bidirectional bus taps: dot + outward chevrons
 
 VALMAP={"NextPC":"NextPC","PC":"expc","PCp4":"expcp4","inst":"exi","rd1":"ReadData1","rd2":"ReadData2",
  "imm":"Immediate","A":"ASelOut","B":"BSelOut","ALU":"ALUResult","mem":"DataToReg","wdata":"WriteData"}
+# color a value by what it is, so one number can be traced across the datapath
+SIGCOLOR={"NextPC":"pc","PC":"pc","PCp4":"pc","inst":"inst","rd1":"reg","rd2":"reg",
+ "imm":"imm","A":"reg","B":"reg","ALU":"alu","mem":"mem","wdata":"wb"}
 def uval(t,s): return int(t.get(VALMAP[s],0)) & 0xffffffff
 def signed(v): return v-(1<<32) if v>=(1<<31) else v
 def hexs(v): return "0x%08x"%(v&0xffffffff)
@@ -128,12 +131,15 @@ def disasm(w):
 CSS = """
 .box{fill:none;stroke:#222;stroke-width:1.1}.alu{fill:none;stroke:#222;stroke-width:1.1}
 .mux{fill:none;stroke:#222;stroke-width:1.1}.mux.fire{stroke:#cf222e;stroke-width:1.6}
-.wire{stroke:#222;stroke-width:1.1;fill:none}.wire.on{stroke:#1a7f37;stroke-width:1.5}
+.wire{stroke:#d0d7de;stroke-width:1.1;fill:none}.wire.on{stroke-width:2.1;stroke-dasharray:6 4;animation:flow .7s linear infinite}
+.wire.cpc.on{stroke:#0969da}.wire.cinst.on{stroke:#8250df}.wire.creg.on{stroke:#137a6b}.wire.cimm.on{stroke:#bf8700}.wire.calu.on{stroke:#cf222e}.wire.cmem.on{stroke:#bc4c00}.wire.cwb.on{stroke:#1a7f37}
+@keyframes flow{to{stroke-dashoffset:-10}}
 .title{font:700 22px Inter,sans-serif;text-anchor:middle;fill:#1a1a1a}
 .lbl{font:16px Inter,sans-serif;fill:#1a1a1a}.lbl2{font:13px Inter,sans-serif;fill:#1a1a1a}.port{font:500 10px Inter,sans-serif;fill:#1a1a1a}
 .bit{font:500 7px Inter,sans-serif;fill:#333}.idx{font:400 12px Inter,sans-serif;fill:#1a1a1a}
 .sig{font:500 9px Inter,sans-serif;fill:#1a1a1a}.ctl{font:700 8px Inter,sans-serif;fill:#1a1a1a;text-anchor:middle}
-.val{font:700 8px Consolas,monospace;fill:#1a7f37}
+.val{font:700 8px Consolas,monospace;fill:#57606a}
+.val.cpc{fill:#0969da}.val.cinst{fill:#8250df}.val.creg{fill:#137a6b}.val.cimm{fill:#bf8700}.val.calu{fill:#cf222e}.val.cmem{fill:#bc4c00}.val.cwb{fill:#1a7f37}
 """
 def esc(s): return str(s).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
 CW={"title":10.5,"lbl":7.8,"lbl2":6.3,"port":5.5,"bit":3.3,"idx":7.0,"sig":5.0,"ctl":4.0}
@@ -175,14 +181,15 @@ def build_svg(t=None):
     o.append("<style>%s</style>"%CSS)
     for i,(pts,s,vp) in enumerate(WIRES):
         d=wpath(pts)
+        cg=SIGCOLOR.get(s,"reg")
         on=" on" if (t and uval(t,s)!=0) else ""
-        o.append('<path id="w%d" class="wire%s" d="%s"/>'%(i,on,d))
+        o.append('<path id="w%d" class="wire c%s%s" d="%s"/>'%(i,cg,on,d))
         if vp:
             txt=""
             if t:
                 v=uval(t,s)
                 if v!=0: txt=hexs(v) if s in("PC","PCp4","inst") else str(signed(v))
-            o.append('<text id="v%d" class="val" x="%g" y="%g">%s</text>'%(i,vp[0],vp[1],esc(txt)))
+            o.append('<text id="v%d" class="val c%s" x="%g" y="%g">%s</text>'%(i,cg,vp[0],vp[1],esc(txt)))
     for b in BOXES:
         o.append('<rect class="box" x="%g" y="%g" width="%g" height="%g"/>'%(b[0],b[1],b[2],b[3]))
         bc="lbl" if b[4] in("IMEM","RegFile","DMEM") else "lbl2"
@@ -281,6 +288,18 @@ def build_html():
     open("datapath.html","w").write(html)
     print("wrote datapath.html (",len(FRAMES),"cycles, font",len(ff)//1024,"KB )")
 
+def export_viz():   # geometry + trace for the React/GSAP app; Python stays the source of truth
+    import os as _os
+    data={"viewBox":"0 0 795 475","svg":build_svg(None),
+          "wires":[{"sig":s,"color":SIGCOLOR.get(s,"reg"),"vp":vp} for (pts,s,vp) in WIRES],
+          "frames":FRAMES,
+          "ticks":[{"cyc":t["cyc"],"pc":hexs(int(t["expc"])),"asm":disasm(int(t["exi"])),
+                    "regs":{r:signed(int(t[r])&0xffffffff) for r in ("t0","t1","t2","a0")},
+                    "regwen":int(t["RegWEn"]),"pcsel":int(t["PCSel"])} for t in TRACE]}
+    _os.makedirs("viz/src",exist_ok=True)
+    open("viz/src/datapath.json","w").write(json.dumps(data,separators=(",",":")))
+    print("wrote viz/src/datapath.json (",len(FRAMES),"frames,",len(WIRES),"wires )")
+
 cyc = int(sys.argv[1]) if len(sys.argv)>1 else 6
 svg = build_svg(None if cyc==0 else TRACE[cyc-1])
 cairosvg.svg2png(bytestring=svg.encode(), write_to="render.png", output_width=1600, background_color="white")
@@ -291,3 +310,4 @@ _p2x=cairosvg.svg2png(bytestring=build_svg(None).encode(), output_width=1590, ba
 _PImg.open(_io.BytesIO(_p2x)).convert("RGB").resize((795,475),_PImg.LANCZOS).save("mine795.png")
 print("wrote render.png for cycle", cyc, "(", len(WIRES), "wires )")
 build_html()
+export_viz()
