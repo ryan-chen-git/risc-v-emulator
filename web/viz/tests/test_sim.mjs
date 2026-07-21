@@ -13,7 +13,7 @@ function run(name, src, steps, check) {
 }
 const eq = (what, got, want) => (got | 0) === (want | 0) ? null : `${what}: got ${got} (${hex(got)}), want ${want} (${hex(want)})`;
 const T = (arr) => arr.filter(Boolean);
-const R = { t0: 5, t1: 6, t2: 7, a0: 10, ra: 1 };
+const R = { t0: 5, t1: 6, t2: 7, t3: 28, a0: 10, ra: 1 };
 
 // basics
 run("addi", "addi t0, zero, 42", 1, (s) => T([eq("t0", s.regs[R.t0], 42)]));
@@ -95,6 +95,35 @@ run("branch-record", "addi t0, zero, 3\naddi t1, zero, 3\nbeq t0, t1, off\nnop\n
 run("jalr-displacement-form", "addi t0, zero, 13\njalr 8(t0)", 2,
   (s, r) => T([eq("nextPc ((13+8)&~1)", r.nextPc, 20), eq("ra", s.regs[R.ra], 8)]));
 run("plus-hex-imm", "addi t0, zero, +0x10", 1, (s) => T([eq("t0", s.regs[R.t0], 16)]));
+
+// MMIO: predefined symbols assemble through li, KEYS reads the host bitmask,
+// framebuffer stores land in fb (never main memory) and read back
+{
+  const { words, errors } = assemble(
+    "li s0, KEYS\nlw t1, 0(s0)\nli s1, FB_BASE\nli t2, 0x22c55e\nsw t2, 132(s1)\nlw t3, 132(s1)");
+  if (errors.length) { console.log(`FAIL mmio: ${JSON.stringify(errors)}`); fail++; }
+  else {
+    const s = new Sim(words);
+    s.keys = 9;
+    while (!s.done()) s.step();
+    const t = T([
+      eq("KEYS", s.regs[R.t1], 9),
+      eq("fb[33]", s.fb[132 >> 2], 0x22c55e),
+      eq("fb readback", s.regs[R.t3], 0x22c55e),
+      eq("main mem untouched", s.mem.size, 0),
+    ]);
+    if (t.length) { console.log(`FAIL mmio: ${t.join("; ")}`); fail++; } else pass++;
+  }
+}
+// RAND differs between reads; a FRAME store bumps the frame counter
+{
+  const { words } = assemble(
+    "li s0, RAND\nlw t0, 0(s0)\nlw t1, 0(s0)\nli s1, FRAME\naddi t2, zero, 1\nsw t2, 0(s1)");
+  const s = new Sim(words);
+  while (!s.done()) s.step();
+  if (s.regs[R.t0] !== s.regs[R.t1] && s.frames === 1) pass++;
+  else { console.log(`FAIL mmio-rand/frame: ${s.regs[R.t0]} ${s.regs[R.t1]} frames=${s.frames}`); fail++; }
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

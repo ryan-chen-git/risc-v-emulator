@@ -97,7 +97,7 @@ const highlight = HighlightStyle.define([
 
 const extensions = [riscv(), syntaxHighlighting(highlight), execField, execHighlight, execGutter, theme];
 
-export default function AsmEditor({ value, onChange, curLine = -1, nextLine = -1, errors = [] }) {
+export default function AsmEditor({ value, onChange, curLine = -1, nextLine = -1, errors = [], height = "260px" }) {
   const viewRef = useRef(null);
 
   // push execution markers + diagnostics into the editor whenever they change
@@ -124,7 +124,7 @@ export default function AsmEditor({ value, onChange, curLine = -1, nextLine = -1
       className="asmeditor"
       theme="none"
       value={value}
-      height="260px"
+      height={height}
       placeholder="Write RISC-V assembly..."
       basicSetup={{ lineNumbers: true, foldGutter: false, highlightActiveLine: true, autocompletion: false }}
       extensions={extensions}

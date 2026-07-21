@@ -51,7 +51,6 @@ def all_arrows(): return wire_end_arrows()+CTRL_ARROWS
 CHEV=[(464,94,"l"),(568,110,"l"),(623,110,"r"),(598,166,"u"),(164,126,"r"),(117,126,"l")]
 # text: x,y,text,cls,anchor
 TEXT = [
-  [383,40,"Single-Cycle Datapath Diagram","title","middle"],
   [165,260,"inst","port","end"],[129,278,"addr","port","start"],
   [243,218,"wdata","port","start"],[243,260,"rd","port","start"],[243,292,"rs1","port","start"],[243,327,"rs2","port","start"],[244,349,"RegWEn","port","start"],
   [344,239,"rdata1","port","end"],[344,309,"rdata2","port","end"],
@@ -188,7 +187,7 @@ def wpath(pts):
     p=shorten_end(pts); return "M"+" L".join("%g,%g"%(q[0],q[1]) for q in p)
 
 def build_svg(t=None):
-    o=['<svg viewBox="0 0 795 475" xmlns="http://www.w3.org/2000/svg" style="background:#fff">']
+    o=['<svg viewBox="0 78 795 397" xmlns="http://www.w3.org/2000/svg" style="background:#fff">']
     o.append("<style>%s</style>"%CSS)
     for i,(pts,s,vp) in enumerate(WIRES):
         d=wpath(pts)
@@ -301,7 +300,7 @@ def build_html():
 
 def export_viz():   # geometry + trace for the React/GSAP app; Python stays the source of truth
     import os as _os
-    data={"viewBox":"0 0 795 475","svg":build_svg(None),
+    data={"viewBox":"0 78 795 397","svg":build_svg(None),
           "wires":[{"sig":s,"color":SIGCOLOR.get(s,"reg"),"vp":vp} for (pts,s,vp) in WIRES],
           "frames":FRAMES,
           "ticks":[{"cyc":t["cyc"],"pc":hexs(int(t["expc"])),"asm":disasm(int(t["exi"])),

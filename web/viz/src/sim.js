@@ -154,7 +154,7 @@ function parseLine(raw, lineNum) {
   if (op === "li") {
     need(2);
     const rd = parseReg(args[0], L);
-    const v = parseImm(args[1], L, null);
+    const v = parseImm(args[1], L, PREDEF);
     if (v >= -2048 && v <= 2047) return one(() => encI(v, 0, 0, rd, 0x13));
     // 32-bit li: lui + addi (compensate addi sign extension)
     const lo = ((v << 20) >> 20);            // sign-extended low 12
@@ -169,10 +169,26 @@ function parseLine(raw, lineNum) {
   throw new AsmError(`unknown instruction "${op}"`, lineNum);
 }
 
+// Memory-mapped devices (per the project's MMIO spec: RARS-style page at
+// 0xFFFF0000, Ripes/RARS-format framebuffer). Symbols are predefined for
+// programs; poll-only — a single-cycle CPU has no interrupts.
+export const MMIO = {
+  KEYS: 0xffff0000,       // RO bitmask of held keys: 1=up 2=down 4=left 8=right 16=A 32=B
+  TIME_MS: 0xffff0008,    // RO ms since program load
+  RAND: 0xffff000c,       // RO fresh xorshift32 per read
+  FRAME: 0xffff0010,      // WO write 1 = frame complete
+  FB_BASE: 0xffff1000,    // 32x32 words, 0x00RRGGBB, addr = FB_BASE + (y*32+x)*4
+  FB_WIDTH: 32,
+  FB_HEIGHT: 32,
+};
+const DEV_LO = 0xffff0000, DEV_HI = 0xffff2000;
+// always-available symbols (usable even by li, whose expansion size is decided at parse time)
+const PREDEF = { KEYS: MMIO.KEYS | 0, TIME_MS: MMIO.TIME_MS | 0, RAND: MMIO.RAND | 0, FRAME: MMIO.FRAME | 0, FB_BASE: MMIO.FB_BASE | 0 };
+
 export function assemble(text) {
   const lines = text.split("\n");
   const instrs = [];       // {gen, line, src}
-  const labels = {};
+  const labels = { ...PREDEF };
   const errors = [];
   lines.forEach((raw, i) => {
     try {
@@ -211,16 +227,58 @@ export class Sim {
     this.regs[3] = 0x10008000 | 0;   // gp
     this.mem = new Map();            // byte addr -> byte (little-endian)
     this.cycle = 0;
+    // MMIO device state
+    this.keys = 0;                   // host sets from keyboard
+    this.fb = new Uint32Array(MMIO.FB_WIDTH * MMIO.FB_HEIGHT);
+    this.fbDirty = false;
+    this.frames = 0;                 // count of FRAME writes
+    this.rngState = 0x9e3779b9;
+    this.epoch = typeof performance !== "undefined" ? performance.now() : 0;
   }
   done() { return this.pc / 4 >= this.words.length || this.pc < 0; }
 
+  deviceWord(a) {                    // word value at aligned device addr (reads have side effects: RAND)
+    if (a >= (MMIO.FB_BASE >>> 0)) {
+      const i = (a - (MMIO.FB_BASE >>> 0)) >> 2;
+      return i < this.fb.length ? this.fb[i] | 0 : 0;
+    }
+    if (a === (MMIO.KEYS >>> 0)) return this.keys | 0;
+    if (a === (MMIO.TIME_MS >>> 0))
+      return (typeof performance !== "undefined" ? (performance.now() - this.epoch) : 0) | 0;
+    if (a === (MMIO.RAND >>> 0)) {
+      let x = this.rngState; x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+      this.rngState = x >>> 0; return x | 0;
+    }
+    return 0;
+  }
+
   loadMem(addr, bytes, unsigned) {
     let v = 0;
-    for (let i = bytes - 1; i >= 0; i--) v = (v << 8) | (this.mem.get((addr + i) >>> 0) ?? 0);
+    if ((addr >>> 0) >= DEV_LO && (addr >>> 0) < DEV_HI) {
+      const w = this.deviceWord((addr & ~3) >>> 0);
+      for (let i = bytes - 1; i >= 0; i--) v = (v << 8) | ((w >>> (((addr + i) & 3) * 8)) & 0xff);
+    } else {
+      for (let i = bytes - 1; i >= 0; i--) v = (v << 8) | (this.mem.get((addr + i) >>> 0) ?? 0);
+    }
     if (!unsigned) { const sh = 32 - bytes * 8; v = (v << sh) >> sh; }
     return v | 0;
   }
   storeMem(addr, bytes, val) {
+    const a = addr >>> 0;
+    if (a >= DEV_LO && a < DEV_HI) {
+      if (a >= (MMIO.FB_BASE >>> 0)) {
+        for (let i = 0; i < bytes; i++) {
+          const b = a + i, idx = (b - (MMIO.FB_BASE >>> 0)) >> 2;
+          if (idx >= this.fb.length) continue;
+          const sh = (b & 3) * 8;
+          this.fb[idx] = ((this.fb[idx] & ~(0xff << sh)) | (((val >>> (i * 8)) & 0xff) << sh)) >>> 0;
+        }
+        this.fbDirty = true;
+      } else if (((a & ~3) >>> 0) === (MMIO.FRAME >>> 0)) {
+        this.frames++;
+      }                              // stores to RO regs are ignored
+      return;
+    }
     for (let i = 0; i < bytes; i++) this.mem.set((addr + i) >>> 0, (val >>> (i * 8)) & 0xff);
   }
 

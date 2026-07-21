@@ -122,7 +122,39 @@ function sigValues(rec, display = "Hex") {
 
 export function clearAnim(svg) {
   svg.querySelectorAll(".wire.on").forEach((w) => w.classList.remove("on"));
-  svg.querySelectorAll(".token, .trace, .sval").forEach((t) => t.remove());
+  svg.querySelectorAll(".token, .trace, .sval, .ctlval").forEach((t) => t.remove());
+}
+
+// Control-signal values under the bottom bar, revealed when they become causally
+// valid: most at decode (control unit output), BrEq/BrLT when the comparator
+// compares, PCSel at the rising edge (it depends on the branch outcome).
+function addCtlValues(svg, tl, rec, sched, stages) {
+  const c = rec.ctrl;
+  const vals = {
+    "PCSel": String(c.PCSel), "inst[31:0]": "0x" + (rec.inst >>> 0).toString(16),
+    "RegWEn": String(c.RegWEn), "ImmSel": c.ImmSel,
+    "BrUn": String(c.BrUn), "BrEq": String(c.BrEq), "BrLT": String(c.BrLT),
+    "BSel": String(c.BSel), "ASel": String(c.ASel), "ALUSel": c.ALUSel,
+    "MemRW": c.MemRW, "WBSel": String(c.WBSel),
+  };
+  const decodeEnd = sched[1]?.end ?? 0;
+  const opIdx = stages.findIndex((s) => s.label.startsWith("operands"));
+  const compareTime = rec.cls === "branch" && opIdx >= 0 ? sched[opIdx].end : decodeEnd;
+  const edgeAt = sched[sched.length - 1]?.at ?? decodeEnd;
+  const timeFor = (k) => (k === "PCSel" ? edgeAt : k === "BrEq" || k === "BrLT" ? compareTime : decodeEnd);
+  for (const lbl of svg.querySelectorAll("text.ctl")) {
+    const key = lbl.textContent.trim();
+    if (!(key in vals)) continue;
+    const t = document.createElementNS(NS, "text");
+    t.setAttribute("x", lbl.getAttribute("x"));
+    t.setAttribute("y", "452");
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("class", "ctlval" + (vals[key] === "-" ? " off" : ""));
+    t.textContent = vals[key];
+    t.style.opacity = "0";
+    svg.appendChild(t);
+    tl.to(t, { opacity: 1, duration: 0.25, ease: "none" }, timeFor(key));
+  }
 }
 
 // label collision helpers (visible text only)
@@ -283,5 +315,8 @@ export function runStages(svg, stages, sigVal, { onLabel, onDone, timeScale = 1 
 // one live-sim cycle: build the per-instruction plan and run it
 export function runCycle(svg, rec, opts = {}) {
   const display = opts.display ?? "Hex";
-  return runStages(svg, buildStages(rec, display), sigValues(rec, display), opts).tl;
+  const stages = buildStages(rec, display);
+  const { tl, sched } = runStages(svg, stages, sigValues(rec, display), opts);
+  addCtlValues(svg, tl, rec, sched, stages);
+  return tl;
 }

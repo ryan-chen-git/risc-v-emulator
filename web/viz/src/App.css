@@ -64,6 +64,8 @@ button:disabled { opacity: 0.4; cursor: default; }
 .stage svg .lbl, .stage svg .lbl2 { fill: var(--ink); }
 .stage svg .port { fill: var(--fg-dim); }
 .stage svg .ctl, .stage svg .sig { fill: var(--ink); }
+.stage svg .idx { fill: var(--fg); }          /* mux input digits were #1a1a1a: invisible on dark */
+.stage svg .bit { fill: var(--fg-faint); }    /* inst[..] bit-range tags were #333 */
 .stage svg [fill="#222"] { fill: var(--ink); }
 .stage svg [stroke="#222"] { stroke: var(--ink); }
 
@@ -71,6 +73,8 @@ button:disabled { opacity: 0.4; cursor: default; }
 .tokval { font: 700 8px var(--font-mono); paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; }
 .stage .trace { fill: none; stroke-width: 2.4px; stroke-linecap: butt; }   /* butt: zero-length dashes in the sub-range pattern must render nothing */
 .sval { font: 700 8.5px var(--font-mono); paint-order: stroke; stroke: var(--bg); stroke-width: 2.5px; stroke-linejoin: round; }
+.ctlval { font: 700 8px var(--font-mono); fill: var(--accent); }
+.ctlval.off { fill: var(--fg-faint); font-weight: 400; }
 
 /* ================= timing diagram ================= */
 .chronoblock { margin-top: 16px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--panel); }
@@ -97,10 +101,55 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 /* ================= live mode ================= */
 .live-grid { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
-.live-top .stage { margin-top: 0; }
-.live-bottom { display: flex; gap: 16px; align-items: flex-start; }
-.live-left { flex: 1 1 54%; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.live-bottom .regpanel { flex: 1 1 46%; min-width: 0; }
+
+/* one shared box: diagram pane | draggable divider | code pane (react-resizable-panels,
+   the same splitter library Overleaf's editor uses) */
+.live-split {
+  height: clamp(460px, 56vh, 640px);
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.live-left { height: 100%; display: flex; flex-direction: column; min-width: 0; position: relative; }
+.live-left .live-diagram { height: auto; flex: 1; min-height: 0; }
+/* hidden but still rendered: the anim engine reads live SVG geometry (getTotalLength) */
+.live-diagram.is-off { position: absolute; inset: 34px 0 0; opacity: 0; pointer-events: none; z-index: -1; }
+.segtoggle { display: flex; border: 1px solid var(--border-strong); border-radius: 7px; overflow: hidden; }
+.segtoggle button { border: 0; border-radius: 0; background: transparent; color: var(--fg-faint); font: 600 11px var(--font-ui); padding: 3px 11px; cursor: pointer; }
+.segtoggle button + button { border-left: 1px solid var(--border-strong); }
+.segtoggle button.on { background: rgba(74, 222, 128, 0.13); color: var(--accent); }
+.cardbtns { display: flex; gap: 6px; }
+.live-display { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 12px; }
+.gamescreen {
+  height: calc(100% - 34px); max-width: 100%; aspect-ratio: 1; flex: 0 1 auto;
+  image-rendering: pixelated; background: #04070d;
+  border: 1px solid var(--border-strong); border-radius: 8px;
+}
+.gamehint { font-size: 11.5px; color: var(--fg-faint); text-align: center; }
+.gamehint b { color: var(--fg-dim); }
+.live-diagram { height: 100%; display: flex; flex-direction: column; min-width: 0; padding: 10px 10px 8px; }
+.live-diagram .stage { margin: 0; padding: 0; border: none; background: transparent; border-radius: 0; flex: 1; min-height: 0; display: flex; }
+.live-diagram .stage svg { width: auto; height: auto; max-width: 100%; max-height: 100%; margin: auto; }
+.live-diagram .legend { margin-top: 6px; }
+.splitter { width: 7px; position: relative; cursor: col-resize; outline: none; }
+.splitter::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 1px;
+  background: var(--border); transition: background 150ms ease, width 150ms ease;
+}
+.splitter:hover::after, .splitter[data-resize-handle-active]::after { left: 2.5px; width: 2px; background: var(--accent); }
+.live-side { height: 100%; display: flex; flex-direction: column; gap: 8px; padding: 0 0 10px; min-width: 0; }
+.live-side .cardbar { border-bottom: 1px solid var(--border); }
+.live-side .asmeditor { flex: 1; min-height: 0; }
+.live-side .asmeditor .cm-editor { height: 100%; }
+.live-side .livecontrols, .live-side .stagebar { padding: 0 10px; }
+.live-side .stagebar { margin-top: 0; }
+.live-panels { display: flex; gap: 16px; align-items: flex-start; }
+.live-panels .regpanel { flex: 1 1 58%; min-width: 0; }
+.live-panels .mempanel { flex: 1 1 42%; min-width: 0; }
+.memrows { max-height: 240px; overflow-y: auto; }
+.memempty { padding: 10px 4px; font-size: 12px; color: var(--fg-faint); }
+.memgap { text-align: center; color: var(--fg-faint); font-size: 10px; line-height: 1; padding: 1px 0; }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .cardbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: var(--muted); border-bottom: 1px solid var(--border); }
 .cardtitle { font: 700 12.5px var(--font-ui); }
@@ -128,7 +177,10 @@ input.regval:disabled { color: var(--fg-faint); }
 @keyframes regflash { 0% { background: rgba(34, 197, 94, 0.4); } 100% { background: rgba(34, 197, 94, 0.10); } }
 .dispsel { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--fg-dim); }
 .dispsel select { font: 500 11.5px var(--font-ui); color: var(--fg); background: var(--panel); border: 1px solid var(--border-strong); border-radius: 6px; padding: 2px 6px; cursor: pointer; }
-@media (max-width: 800px) { .live-bottom { flex-direction: column; } .live-left, .live-bottom .regpanel { flex: none; width: 100%; } }
+@media (max-width: 800px) {
+  .live-panels { flex-direction: column; }
+  .live-panels .regpanel, .live-panels .mempanel { flex: none; width: 100%; }
+}
 
 /* ================= legend ================= */
 .legend { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 18px; font-size: 12px; color: var(--fg-dim); }
