@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import data from "./datapath.json";
 import { COLORS, LEGEND } from "./theme.js";
-import { assemble, Sim, ABI, hex } from "./sim.js";
+import { assemble, Sim, ABI, hex, formatValue } from "./sim.js";
 import { runCycle, clearAnim } from "./anim.js";
 import AsmEditor from "./AsmEditor.jsx";
 import "./App.css";
@@ -24,13 +24,7 @@ done: addi a1, zero, 1`;
 // "abi (xN)" labels, editable value inputs (blur commits), a Hex/Decimal/
 // Unsigned/ASCII display selector, and a sticky is-modified mark on the most
 // recently written register.
-const fmtReg = (v, type) => {
-  if (type === "Decimal") return String(v | 0);
-  if (type === "Unsigned") return String(v >>> 0);
-  if (type === "ASCII")
-    return [24, 16, 8, 0].map((s) => { const b = (v >>> s) & 0xff; return b >= 32 && b <= 126 ? String.fromCharCode(b) : "�"; }).join("");
-  return hex(v);
-};
+const fmtReg = (v, type) => formatValue(v, type, true);   // padded panel form; the same selector drives the diagram
 const parseRegInput = (str) => {
   const s = str.trim();
   if (/^-?0x/i.test(s)) return parseInt(s, 16) | 0;
@@ -38,8 +32,7 @@ const parseRegInput = (str) => {
   return Number.isNaN(v) ? null : v | 0;
 };
 
-function RegPanel({ regs, pc, cycle, lastWrite, flashKey, onEdit, editable }) {
-  const [displayType, setDisplayType] = useState("Hex");
+function RegPanel({ regs, pc, cycle, lastWrite, flashKey, onEdit, editable, displayType, onDisplayChange }) {
   const commit = (i, el) => {
     const v = parseRegInput(el.value);
     if (v === null || !onEdit || !onEdit(i, v)) el.value = fmtReg(regs[i], displayType);   // revert bad/blocked edits
@@ -48,11 +41,11 @@ function RegPanel({ regs, pc, cycle, lastWrite, flashKey, onEdit, editable }) {
   return (
     <div className="regpanel">
       <div className="regmeta">
-        <span>PC <b className="mono">{hex(pc)}</b></span>
+        <span>PC <b className="mono">{fmtReg(pc, displayType)}</b></span>
         <span>cycle <b>{cycle}</b></span>
         <label className="dispsel">
           Display
-          <select value={displayType} onChange={(e) => setDisplayType(e.target.value)}>
+          <select value={displayType} onChange={(e) => onDisplayChange(e.target.value)}>
             {["Hex", "Decimal", "Unsigned", "ASCII"].map((t) => <option key={t}>{t}</option>)}
           </select>
         </label>
@@ -102,6 +95,9 @@ export default function Live() {
   const [running, setRunning] = useState(false);
   const [animate, setAnimate] = useState(true);
   animateRef.current = animate;
+  const displayRef = useRef("Hex");
+  const [displayType, setDisplayType] = useState("Hex");
+  displayRef.current = displayType;
 
   const svg = () => hostRef.current?.querySelector("svg");
   const snapshot = (sim) => { setRegs(new Int32Array(sim.regs)); setPc(sim.pc); setCycle(sim.cycle); };
@@ -141,6 +137,7 @@ export default function Live() {
     setCurLine(program.lineOf[rec.pc / 4] ?? -1);
     setNextLine(sim.done() ? -1 : program.lineOf[sim.pc / 4] ?? -1);
     runCycle(svg(), rec, {
+      display: displayRef.current,
       timeScale: animateRef.current ? 1 : 25,
       onLabel: setStageLabel,
       onDone: () => {
@@ -248,6 +245,7 @@ export default function Live() {
 
         <RegPanel
           regs={regs} pc={pc} cycle={cycle} lastWrite={lastWrite} flashKey={flashKey}
+          displayType={displayType} onDisplayChange={setDisplayType}
           editable={!!program && !busy && !running}
           onEdit={(i, v) => {                    // Venus's saveRegister: blur commits into the sim
             const sim = simRef.current;

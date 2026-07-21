@@ -7,7 +7,7 @@
 import { gsap } from "gsap";
 import data from "./datapath.json";
 import { COLORS } from "./theme.js";
-import { hex } from "./sim.js";
+import { hex, formatValue } from "./sim.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const SPEED = 240, MAX_RIDE = 2.8, APPEAR = 0.15, DWELL = 0.3;
@@ -23,19 +23,24 @@ const F = {
   trunkOffIMEM: 23 / 69.5, // w13: IMEM -> trunk junction
   aluBusRight: 584 / 699,  // w8: ALU rise point -> right end
   pcp4BusTap: 117 / 683,   // w5: +4 tap point on the PC+4 bus
-  rd1Comp: (401 - 348) / 140,   // w18: rdata1 -> BranchComp tap
-  rd2Comp: (401 - 348) / 140,   // w20: rdata2 -> BranchComp tap
-  rd2Dmem: (480 - 348) / 140,   // w20: rdata2 -> DMEM wdata tap
+  rd1Comp: (383 - 348) / 140,   // w18: rdata1 -> BranchComp tap
+  rd2Comp: (383 - 348) / 140,   // w20: rdata2 -> BranchComp tap
+  rd2Dmem: (470 - 348) / 140,   // w20: rdata2 -> DMEM wdata tap
+  aluOutStem: 22 / 167,         // w11: ALU face -> the output junction (shared by w12 and the rise)
 };
 
-export function buildStages(rec) {
+// display: the register viewer's Display selector value — every value on the
+// diagram follows it (Hex/Decimal/Unsigned/ASCII), compact form.
+export function buildStages(rec, display = "Hex") {
   const c = rec.ctrl, cls = rec.cls;
   const stages = [];
-  const dec = (v) => String(v | 0);
+  const fmt = (v) => formatValue(v, display);
 
   stages.push({
-    label: `fetch — PC ${hex(rec.pc)} drives IMEM and the +4 adder`,
-    hops: [{ w: 1, to: F.pcStem }, { w: 3, after: 1 }, { w: 2, after: 1 }],
+    label: `fetch — PC ${fmt(rec.pc)} drives IMEM and, in parallel, the +4 adder`,
+    hops: [{ w: 1, to: F.pcStem }, { w: 3, after: 1 }, { w: 2, after: 1 },
+           // the +4 adder is combinational: PC+4 flows to the PCSel mux during fetch
+           { w: 4, after: 2 }, { w: 5, from: F.pcp4BusTap, to: 0, after: 4 }, { w: 6, after: 5 }],
   });
 
   const decodeHops = [{ w: 13, to: c.RegWEn ? 1 : F.trunkOffIMEM }, { w: 14, after: 13 }];
@@ -50,27 +55,32 @@ export function buildStages(rec) {
   const readParts = [];
   if (cls === "branch") {
     readHops.push({ w: 18, to: F.rd1Comp }, { w: 19, after: 18 }, { w: 20, to: F.rd2Comp }, { w: 21, after: 20 });
-    readParts.push(`compare rs1=${dec(rec.vals.rd1)} vs rs2=${dec(rec.vals.rd2)} (BrEq=${c.BrEq}, BrLT=${c.BrLT})`);
+    readParts.push(`compare rs1=${fmt(rec.vals.rd1)} vs rs2=${fmt(rec.vals.rd2)} (BrEq=${c.BrEq}, BrLT=${c.BrLT})`);
   } else {
-    if (rec.usesRs1 && c.ASel === 0) { readHops.push({ w: 18 }); readParts.push(`rs1 = ${dec(rec.vals.rd1)}`); }
-    if (rec.usesRs2 && c.BSel === 0) { readHops.push({ w: 20 }); readParts.push(`rs2 = ${dec(rec.vals.rd2)}`); }
+    if (rec.usesRs1 && c.ASel === 0) { readHops.push({ w: 18 }); readParts.push(`rs1 = ${fmt(rec.vals.rd1)}`); }
+    if (rec.usesRs2 && c.BSel === 0) { readHops.push({ w: 20 }); readParts.push(`rs2 = ${fmt(rec.vals.rd2)}`); }
   }
   if (c.ASel === 1) { readHops.push({ w: 1, from: F.pcStem, to: 1 }); readParts.push(`A ← PC (ASel=1)`); }
-  if (c.ImmSel !== "-" && c.BSel === 1) { readHops.push({ w: 23 }); readParts.push(`imm = ${dec(rec.vals.imm)}`); }
+  if (c.ImmSel !== "-" && c.BSel === 1) { readHops.push({ w: 23 }); readParts.push(`imm = ${fmt(rec.vals.imm)}`); }
   if (readHops.length) stages.push({ label: `operands — ${readParts.join(" · ")}`, hops: readHops });
 
   stages.push({
-    label: `execute — ALU ${c.ALUSel}: ${dec(rec.vals.A)} ${aluGlyph(c.ALUSel)} ${dec(rec.vals.B)} = ${dec(rec.vals.ALU)}`,
-    hops: [{ w: 24 }, { w: 25 }],
+    label: cls === "lui"
+      ? `execute — ALU passes the immediate through: ${fmt(rec.vals.ALU)}`
+      : `execute — ALU ${c.ALUSel}: ${fmt(rec.vals.A)} ${aluGlyph(c.ALUSel)} ${fmt(rec.vals.B)} = ${fmt(rec.vals.ALU)}`,
+    hops: cls === "lui" ? [{ w: 25 }] : [{ w: 24 }, { w: 25 }],   // lui ignores A; a garbage token would mislead
   });
 
   if (cls === "store")
     stages.push({
-      label: `memory — store ${dec(rec.vals.rd2)} to ${hex(rec.memWrite.addr)}`,
-      hops: [{ w: 12 }, { w: 20, to: F.rd2Dmem }, { w: 22, after: 20 }],
+      label: `memory — store ${fmt(rec.vals.rd2)} to ${fmt(rec.memWrite.addr)}`,
+      hops: [{ w: 11, to: F.aluOutStem }, { w: 12, after: 11 }, { w: 20, to: F.rd2Dmem }, { w: 22, after: 20 }],
     });
   if (cls === "load")
-    stages.push({ label: `memory — read ${hex(rec.vals.ALU)} → ${dec(rec.vals.mem)}`, hops: [{ w: 12 }] });
+    stages.push({
+      label: `memory — read ${fmt(rec.vals.ALU)} → ${fmt(rec.vals.mem)}`,
+      hops: [{ w: 11, to: F.aluOutStem }, { w: 12, after: 11 }],
+    });
 
   if (c.RegWEn) {
     const wb =
@@ -78,16 +88,19 @@ export function buildStages(rec) {
       : c.WBSel === 2 ? [{ w: 4 }, { w: 5, from: F.pcp4BusTap, to: 1, after: 4 }, { w: 7, after: 5 }, { w: 27, after: 7 }]
       : [{ w: 11 }, { w: 8, from: F.aluBusRight, to: 1, after: 11 }, { w: 10, after: 8 }, { w: 27, after: 10 }];
     const src = c.WBSel === 0 ? "memory" : c.WBSel === 2 ? "PC+4 (link)" : "ALU";
-    stages.push({ label: `writeback — x${rec.fields.rd} ← ${dec(rec.vals.wdata)} from ${src}`, hops: wb });
+    stages.push({ label: `writeback — x${rec.fields.rd} ← ${fmt(rec.vals.wdata)} from ${src}`, hops: wb });
   }
 
+  // PC+4 already reached the PCSel mux during fetch; the final stage is the mux
+  // choice + the rising-edge latch (plus the ALU-target route when PCSel=1,
+  // which could only settle after execute).
   const pcHops = c.PCSel === 1
     ? [{ w: 11 }, { w: 8, from: F.aluBusRight, to: 0, after: 11 }, { w: 9, after: 8 }, { w: 0, after: 9, label: false }]
-    : [{ w: 4 }, { w: 5, from: F.pcp4BusTap, to: 0, after: 4 }, { w: 6, after: 5 }, { w: 0, after: 6, label: false }];
+    : [{ w: 0, label: false }];
   stages.push({
     label: c.PCSel === 1
-      ? `next PC — ${cls === "branch" ? "branch TAKEN" : cls} → ${hex(rec.nextPc)}`
-      : `next PC — ${cls === "branch" ? "branch not taken, " : ""}PC+4 = ${hex(rec.nextPc)}`,
+      ? `rising edge — PCSel selects the ${cls === "branch" ? "taken-branch" : cls} target; PC latches ${fmt(rec.nextPc)}`
+      : `rising edge — PCSel keeps PC+4${cls === "branch" ? " (branch not taken)" : ""}; PC latches ${fmt(rec.nextPc)}`,
     hops: pcHops,
   });
   return stages;
@@ -95,14 +108,15 @@ export function buildStages(rec) {
 
 const aluGlyph = (op) => ({ add: "+", sub: "-", and: "&", or: "|", xor: "^", sll: "<<", srl: ">>>", sra: ">>", slt: "<s", sltu: "<u", copyB: "pass" }[op] || op);
 
-// value shown riding each signal
-function sigValues(rec) {
+// value shown riding each signal — all follow the register viewer's Display choice
+function sigValues(rec, display = "Hex") {
   const v = rec.vals;
+  const fmt = (x) => formatValue(x, display);
   return {
-    NextPC: hex(v.NextPC), PC: hex(v.PC), PCp4: hex(v.PCp4), inst: null,
-    rd1: String(v.rd1), rd2: String(v.rd2), imm: String(v.imm),
-    A: String(v.A), B: String(v.B), ALU: String(v.ALU),
-    mem: String(v.mem), wdata: String(v.wdata),
+    NextPC: fmt(v.NextPC), PC: fmt(v.PC), PCp4: fmt(v.PCp4), inst: null,
+    rd1: fmt(v.rd1), rd2: fmt(v.rd2), imm: fmt(v.imm),
+    A: fmt(v.A), B: fmt(v.B), ALU: fmt(v.ALU),
+    mem: fmt(v.mem), wdata: fmt(v.wdata),
   };
 }
 
@@ -230,7 +244,10 @@ export function runStages(svg, stages, sigVal, { onLabel, onDone, timeScale = 1 
 
       if (parent) {
         tl.set(g, { opacity: 1 }, rideStart);
-        if (continuation) {
+        // hand-off hides the parent dot only when the SAME signal continues over a
+        // bus junction; across a mux/adder the signal transforms, so the arriving
+        // value stays parked at the input (like A/B at the ALU) and dims later.
+        if (continuation && parent.sig === meta.sig) {
           tl.set(parent.g, { opacity: 0 }, rideStart);
           const i = settled.indexOf(parent.g);
           if (i >= 0) settled.splice(i, 1);
@@ -247,7 +264,7 @@ export function runStages(svg, stages, sigVal, { onLabel, onDone, timeScale = 1 
       tl.to(dot, { attr: { r: 7 }, duration: 0.1, yoyo: true, repeat: 1, ease: "power1.in" }, rideStart + dur - 0.04);
       settled.push(g);
 
-      built[hop.w] = { rideStart, dur, a, b, wire, g, val };
+      built[hop.w] = { rideStart, dur, a, b, wire, g, val, sig: meta.sig };
       stageEnd = Math.max(stageEnd, rideStart + dur);
     });
 
@@ -255,6 +272,8 @@ export function runStages(svg, stages, sigVal, { onLabel, onDone, timeScale = 1 
     at = stageEnd + DWELL;
   });
 
+  // the last stage has no successor to dim it — settle everything at the end
+  if (settled.length) tl.to(settled.slice(), { opacity: 0.45, duration: 0.3, ease: "none" }, at);
   if (onDone) tl.call(() => onDone(), [], at);
   tl.timeScale(timeScale);
   if (typeof window !== "undefined") { window.__tl = tl; window.__sched = sched; }
@@ -263,5 +282,6 @@ export function runStages(svg, stages, sigVal, { onLabel, onDone, timeScale = 1 
 
 // one live-sim cycle: build the per-instruction plan and run it
 export function runCycle(svg, rec, opts = {}) {
-  return runStages(svg, buildStages(rec), sigValues(rec), opts).tl;
+  const display = opts.display ?? "Hex";
+  return runStages(svg, buildStages(rec, display), sigValues(rec, display), opts).tl;
 }

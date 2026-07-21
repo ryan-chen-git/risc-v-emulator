@@ -18,8 +18,9 @@ const MAXT = data.ticks.length * 2;   // two half-cycles per recorded cycle
 // this hop starts the moment that hop's head passes this hop's start point (a branch),
 // or hands the dot off if the junction is at the parent's end (a continuation).
 const STAGES = [
-  { label: "fetch the instruction (PC drives IMEM and the +4 adder)",
-    hops: [{ w: 1, to: 33 / 416 }, { w: 3, after: 1 }, { w: 2, after: 1 }] },   // w1's first 33px is the shared PC stem
+  { label: "fetch — PC drives IMEM and, in parallel, the +4 adder; PC+4 runs ahead to the PCSel mux",
+    hops: [{ w: 1, to: 33 / 416 }, { w: 3, after: 1 }, { w: 2, after: 1 },              // w1's first 33px is the shared PC stem
+           { w: 4, after: 2 }, { w: 5, from: 117 / 683, to: 0, after: 4 }, { w: 6, after: 5 }] },   // the +4 result is combinational: it flows during fetch, not after writeback
   { label: "decode (the instruction fields fan out to the register file, immediate generator, and control)",
     hops: [{ w: 13 }, { w: 14, after: 13 }, { w: 15, after: 14 }, { w: 17, after: 14 }] },
   { label: "read register rs1 and build the immediate",
@@ -30,8 +31,8 @@ const STAGES = [
     hops: [{ w: 11 }, { w: 8, from: 584 / 699, to: 1, after: 11 }, { w: 10, after: 8 }] },
   { label: "write the result back into the register file",
     hops: [{ w: 27 }] },
-  { label: "PC+4 becomes the next PC (PCSel selects PC+4)",
-    hops: [{ w: 4 }, { w: 5, from: 117 / 683, to: 0, after: 4 }, { w: 6, after: 5 }, { w: 0, after: 6, label: false }] },   // w0's value would poke into the PC box; w6 already carried it
+  { label: "rising edge — PCSel selects PC+4 and the PC latches 0x00000014",
+    hops: [{ w: 0, label: false }] },   // only the latch happens now; PC+4 arrived at the mux back in fetch
 ];
 
 const sigVal = {};

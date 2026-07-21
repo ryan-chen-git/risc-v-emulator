@@ -15,7 +15,7 @@ BOXES = [
   [128,209,41,114,"IMEM",148,222],
   [242,187,106,167,"RegFile",295,203],
   [290,362,44,31,"Imm",312,376,"Gen",312,388],
-  [422,249,57,31,"Branch",450,261,"Comp",450,276],
+  [404,249,57,31,"Branch",432,261,"Comp",432,276],
   [614,203,84,190,"DMEM",656,220],
 ]
 # clock triangles (small ^ at clocked-element bottoms): x,y base
@@ -28,14 +28,25 @@ MUX = {
  "bsel" :{"pts":"491.5,291 502.5,296 502.5,339 491.5,343","idx":[["0",497,310],["1",497,333]]},
  "wbsel":{"pts":"748,238 762,243 762,319 748,324","idx":[["1",755,263],["2",755,285],["0",755,307]]},
 }
-# arrowheads (x,y,dir): r=right l=left u=up d=down. component inputs + feedback-bus flow direction
-ARROWS=[(88,181,"r"),(128,274,"r"),(242,215,"r"),(242,257,"r"),(242,289,"r"),(242,324,"r"),
- (290,377,"r"),(422,257,"r"),(422,271,"r"),(491.5,214,"r"),(491.5,236,"r"),(491.5,306,"r"),(491.5,329,"r"),
- (533,225,"r"),(533,317,"r"),(614,255,"r"),(614,359,"r"),(748,259,"r"),(748,281,"r"),(748,303,"r"),
- (58,170,"r"),(58,193,"r"),(140,159,"u"),
- (64,206.5,"u"),(497,249,"u"),(497,341,"u"),(556,340,"u"),(755,322,"u"),
- (261,354,"u"),(312,393,"u"),(427,280,"u"),(636,393,"u"),
- (192,425,"d"),(451,425,"d"),(473,425,"d")]
+# Wire-end arrowheads are GENERATED from each wire's final segment (tip exactly at
+# the endpoint, direction from the segment), so moving a wire moves its arrowhead.
+# NO_END_ARROW lists the only ends that get none: merges into a bus junction/corner
+# or into the control bar (which draws its own arrows).
+NO_END_ARROW={(140,126),(706,126),(713,110),(598,110),(192,426)}
+def wire_end_arrows():
+    out=[]
+    for pts,s,vp in WIRES:
+        (x1,y1),(x2,y2)=pts[-2],pts[-1]
+        if (x2,y2) in NO_END_ARROW: continue
+        d="r" if x2>x1 else ("l" if x2<x1 else ("d" if y2>y1 else "u"))
+        out.append((x2,y2,d))
+    return out
+# select-wire + control arrows (not wire ends): mux selects from the bar, control
+# taps into components, and bar-entry arrows
+CTRL_ARROWS=[(64,206.5,"u"),(497,249,"u"),(497,341,"u"),(556,340,"u"),(755,322,"u"),
+ (261,354,"u"),(312,393,"u"),(409,280,"u"),(636,393,"u"),
+ (192,425,"d"),(433,425,"d"),(455.5,425,"d")]
+def all_arrows(): return wire_end_arrows()+CTRL_ARROWS
 # feedback-bus flow direction: large OPEN chevrons (reference style, hollow not filled)
 CHEV=[(464,94,"l"),(568,110,"l"),(623,110,"r"),(598,166,"u"),(164,126,"r"),(117,126,"l")]
 # text: x,y,text,cls,anchor
@@ -54,14 +65,14 @@ TEXT = [
 # bottom control: xCenter,w,label,sig,topY[,targetX]
 CTRL = [
   [73,47,"PCSel","PCSel",425],[206,63,"inst[31:0]","",426],[261,46,"RegWEn","RegWEn",354],
-  [312,56,"ImmSel","ImmSel",393],[427,24,"BrUn","BrUn",280],[451,24,"BrEq","BrEq",280],
-  [473,21,"BrLT","BrLt",280],[497,26,"BSel","BSel",425],[523,26,"ASel","ASel",425],
+  [312,56,"ImmSel","ImmSel",393],[409,24,"BrUn","BrUn",280],[433,24,"BrEq","BrEq",280],
+  [455.5,21,"BrLT","BrLt",280],[497,26,"BSel","BSel",425],[523,26,"ASel","ASel",425],
   [556,40,"ALUSel","ALUSel",340],[636,46,"MemRW","MemRW",393],[755,38,"WBSel","WBSel",322],
 ]
 # custom select-wire paths matching the reference: PCSel & BSel straight, ASel jogs at y275
 SELWIRES=[[[64,425],[64,206.5]],[[523,425],[523,275],[497,275],[497,249]],[[497,425],[497,341]]]
 # bottom-bar dividers (incl. bar ends 50 & 771); labels are centered within their box, wires stay component-aligned
-BARDIVS=[40,88,160,224,238,284,340,415,439,463,484,510,536,576,613,659,736,774]
+BARDIVS=[40,88,160,224,238,284,340,397,421,445,466,484,510,536,576,613,659,736,774]
 def boxcenter(x):
     for i in range(len(BARDIVS)-1):
         if BARDIVS[i]<=x<=BARDIVS[i+1]: return (BARDIVS[i]+BARDIVS[i+1])/2.0
@@ -87,17 +98,17 @@ WIRES = [
   ([[192,324],[242,324]],"inst",None),
   ([[192,377],[290,377]],"inst",None),
   ([[348,236],[491.5,236]],"rd1",[416,231]),
-  ([[401,236],[401,257],[422,257]],"rd1",None),
+  ([[383,236],[383,257],[404,257]],"rd1",None),
   ([[348,306],[491.5,306]],"rd2",[416,301]),
-  ([[401,306],[401,271],[422,271]],"rd2",None),
-  ([[480,306],[480,359],[614,359]],"rd2",None),
-  ([[335,378],[401,378],[401,329],[491.5,329]],"imm",[355,373]),
+  ([[383,306],[383,271],[404,271]],"rd2",None),
+  ([[470,306],[470,359],[614,359]],"rd2",None),
+  ([[335,378],[383,378],[383,329],[491.5,329]],"imm",[355,373]),
   ([[502.5,225],[533,225]],"A",[515,220]),
   ([[502.5,317],[533,317]],"B",[515,312]),
   ([[698,303],[748,303]],"mem",[705,298]),
   ([[762,281],[779,281],[779,94],[206,94],[206,215],[242,215]],"wdata",[430,90]),
 ]
-JUNC=[[140,179],[113,179],[192,257],[192,289],[192,324],[192,377],[401,236],[401,306],[480,306],[598,255]]
+JUNC=[[140,179],[113,179],[192,257],[192,289],[192,324],[192,377],[383,236],[383,306],[470,306],[598,255]]
 TAPS=[[140,126],[598,110]]   # bidirectional bus taps: dot + outward chevrons
 
 VALMAP={"NextPC":"NextPC","PC":"expc","PCp4":"expcp4","inst":"exi","rd1":"ReadData1","rd2":"ReadData2",
@@ -168,7 +179,7 @@ def shorten_end(pts):   # pull a wire end back into its arrowhead so the wire ne
     if len(pts)<2: return pts
     for idx,adj in ((0,1),(len(pts)-1,len(pts)-2)):
         px,py=pts[idx]
-        if any(abs(px-a[0])<=1.5 and abs(py-a[1])<=1.5 for a in ARROWS):
+        if any(abs(px-a[0])<=1.5 and abs(py-a[1])<=1.5 for a in all_arrows()):
             qx,qy=pts[adj]; dx,dy=px-qx,py-qy; dd=(dx*dx+dy*dy)**0.5
             if dd>0:
                 k=min(3.5,dd)/dd; pts[idx]=[px-dx*k,py-dy*k]
@@ -221,7 +232,7 @@ def build_svg(t=None):
         o.append('<circle cx="%g" cy="%g" r="2" fill="#222"/>'%(j[0],j[1]))
     for x,y in TAPS:
         o.append(tap(x,y))
-    for x,y,d in ARROWS:
+    for x,y,d in all_arrows():
         o.append(arrow(x,y,d))
     for x,y,d in CHEV:
         o.append(chevron(x,y,d))

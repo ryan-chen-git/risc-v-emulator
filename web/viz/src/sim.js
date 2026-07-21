@@ -12,6 +12,17 @@ REGNUM["fp"] = 8;
 
 const hex = (v) => "0x" + (v >>> 0).toString(16).padStart(8, "0");
 
+// One formatter for every value display in the app (register panel, wire tokens,
+// stage labels) so the Display selector governs them all. pad=true gives the
+// register-panel 8-digit form; tokens use the compact form.
+export function formatValue(v, type = "Hex", pad = false) {
+  if (type === "Decimal") return String(v | 0);
+  if (type === "Unsigned") return String(v >>> 0);
+  if (type === "ASCII")
+    return [24, 16, 8, 0].map((s) => { const b = (v >>> s) & 0xff; return b >= 32 && b <= 126 ? String.fromCharCode(b) : "�"; }).join("");
+  return pad ? hex(v) : "0x" + (v >>> 0).toString(16);
+}
+
 // ---------------- assembler (hand-rolled two-pass; syntax follows Venus) ----------------
 
 const R_OPS = { add:[0,0], sub:[0,0x20], sll:[1,0], slt:[2,0], sltu:[3,0], xor:[4,0], srl:[5,0], sra:[5,0x20], or:[6,0], and:[7,0] };
